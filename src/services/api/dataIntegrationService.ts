@@ -43,11 +43,22 @@ export async function buildCanonicalAnalysisResult(
   const isAgri = isAgriCategory(business.id);
   const subCat = rawSubCat || getSubCategory(business.id);
 
-  // 1. Fetch OSM Overpass Nearby Mapped Businesses
+  // 1. Fetch External Data Sources in Parallel (Zero Blocking / Non-Hanging Architecture)
+  const [osmSettled, mandiSettled, histSettled] = await Promise.allSettled([
+    fetchNearbyOSMBusinesses(location.lat, location.lng, radiusKm),
+    isAgri && options.convexClient
+      ? getAgmarknetMandiPrices(location.state, location.district, business.name, options.convexClient)
+      : Promise.resolve(null),
+    isAgri && options.convexClient
+      ? getHistoricalCropPrices(business.name, location.state, options.convexClient)
+      : Promise.resolve(null),
+  ]);
+
+  // Extract OSM Overpass result cleanly
   let osmData: OSMCompetitionSummary;
-  try {
-    osmData = await fetchNearbyOSMBusinesses(location.lat, location.lng, radiusKm);
-  } catch {
+  if (osmSettled.status === "fulfilled" && osmSettled.value) {
+    osmData = osmSettled.value;
+  } else {
     osmData = {
       radiusKm,
       totalMappedBusinesses: 0,
@@ -73,45 +84,31 @@ export async function buildCanonicalAnalysisResult(
     displayLabelHi: "जनसंख्या — जनगणना 2011",
   };
 
-  // 3. Fetch Mandi Data & Historical Prices if Agriculture Business
+  // 3. Extract Mandi & Historical Crop Price results cleanly
   let mandiResult: { records: MandiPriceRecord[]; status: "VERIFIED_EXTERNAL" | "UNAVAILABLE"; statusTextHi: string } = {
     records: [],
     status: "UNAVAILABLE",
     statusTextHi: "विश्वसनीय डेटा उपलब्ध नहीं है।",
   };
+  if (mandiSettled.status === "fulfilled" && mandiSettled.value && mandiSettled.value.status === "VERIFIED_EXTERNAL" && mandiSettled.value.records.length > 0) {
+    mandiResult = {
+      records: mandiSettled.value.records,
+      status: "VERIFIED_EXTERNAL",
+      statusTextHi: mandiSettled.value.messageHi,
+    };
+  }
 
   let historicalResult: { records: HistoricalCropPriceRecord[]; status: "VERIFIED_EXTERNAL" | "UNAVAILABLE"; statusTextHi: string } = {
     records: [],
     status: "UNAVAILABLE",
     statusTextHi: "विश्वसनीय डेटा उपलब्ध नहीं है।",
   };
-
-  if (isAgri && options.convexClient) {
-    try {
-      const agmarkRes = await getAgmarknetMandiPrices(location.state, location.district, business.name, options.convexClient);
-      if (agmarkRes.status === "VERIFIED_EXTERNAL" && agmarkRes.records.length > 0) {
-        mandiResult = {
-          records: agmarkRes.records,
-          status: "VERIFIED_EXTERNAL",
-          statusTextHi: agmarkRes.messageHi,
-        };
-      }
-    } catch (err) {
-      console.warn("[DataIntegration] AGMARKNET fetch error:", err);
-    }
-
-    try {
-      const histRes = await getHistoricalCropPrices(business.name, location.state, options.convexClient);
-      if (histRes.status === "VERIFIED_EXTERNAL" && histRes.records.length > 0) {
-        historicalResult = {
-          records: histRes.records,
-          status: "VERIFIED_EXTERNAL",
-          statusTextHi: histRes.messageHi,
-        };
-      }
-    } catch (err) {
-      console.warn("[DataIntegration] Historical Crop Price fetch error:", err);
-    }
+  if (histSettled.status === "fulfilled" && histSettled.value && histSettled.value.status === "VERIFIED_EXTERNAL" && histSettled.value.records.length > 0) {
+    historicalResult = {
+      records: histSettled.value.records,
+      status: "VERIFIED_EXTERNAL",
+      statusTextHi: histSettled.value.messageHi,
+    };
   }
 
   // 4. Deterministic Financial & Feasibility Engine Calculations

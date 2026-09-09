@@ -169,7 +169,7 @@ function OnboardingInner() {
       const startedAt = Date.now();
       await runFullAnalysis();
       const elapsed = Date.now() - startedAt;
-      const minDisplay = 3200;
+      const minDisplay = 1200;
       if (elapsed < minDisplay) {
         await new Promise((resolve) => setTimeout(resolve, minDisplay - elapsed));
       }

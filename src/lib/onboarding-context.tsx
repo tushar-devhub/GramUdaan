@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { Location } from "@/data/locations";
 import type { BusinessCategory } from "@/data/businesses";
 import type { FeasibilityData } from "@/data/feasibility-types";
@@ -65,20 +65,25 @@ interface OnboardingContextType extends OnboardingState {
   loadDemo: (demo: DemoScenario) => void;
 }
 
+const defaultLocation = locations[0]; // Bisalpur, Pilibhit
+const defaultBusiness = businessCategories[0]; // Dairy / डेयरी
+const defaultCapital = 200000;
+const defaultFeasibility = generateFeasibility(defaultBusiness.id, defaultCapital, defaultLocation.id, 5);
+
 const defaultState: OnboardingState = {
-  location: null,
+  location: defaultLocation,
   radius: 5,
-  business: null,
+  business: defaultBusiness,
   subCategory: null,
   placeStatus: "unsure",
   rentMonthly: 0,
   scaleChoice: "recommended",
   businessAnswers: {},
-  capital: 0,
-  targetInvestment: 0,
+  capital: defaultCapital,
+  targetInvestment: defaultCapital,
   otherFunding: 0,
   costOverrides: {},
-  feasibility: null,
+  feasibility: defaultFeasibility,
   analysisResult: null,
   isAnalyzing: false,
 };
@@ -87,6 +92,25 @@ const OnboardingContext = createContext<OnboardingContextType | null>(null);
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<OnboardingState>(defaultState);
+
+  useEffect(() => {
+    if (state.location && state.business && !state.analysisResult) {
+      buildCanonicalAnalysisResult({
+        location: state.location,
+        business: state.business,
+        subCategory: state.subCategory,
+        radiusKm: state.radius,
+        capital: state.capital,
+        placeStatus: state.placeStatus,
+        rentMonthly: state.rentMonthly,
+        scaleChoice: state.scaleChoice,
+      })
+        .then((res) => {
+          setState((s) => ({ ...s, analysisResult: res }));
+        })
+        .catch(console.error);
+    }
+  }, [state.location, state.business, state.subCategory, state.radius, state.capital, state.placeStatus, state.rentMonthly, state.scaleChoice, state.analysisResult]);
 
   const setLocation = (location: Location | null) =>
     setState((s) => ({ ...s, location }));
