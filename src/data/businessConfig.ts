@@ -20,12 +20,12 @@ export type PlaceStatus =
   | "unsure";    // not decided yet
 
 export const PLACE_STATUS_OPTIONS: { value: PlaceStatus; label: string; labelHi: string; hint: string }[] = [
-  { value: "own", label: "I already have it", labelHi: "मेरे पास पहले से है", hint: "Land/shop already owned — no purchase cost added" },
-  { value: "rent", label: "I will rent", labelHi: "किराए पर लूँगा", hint: "Monthly rent is included in running costs" },
-  { value: "buy", label: "I will buy", labelHi: "खरीदूँगा", hint: "Purchase cost is added to the setup requirement" },
-  { value: "build", label: "I will build / construct", labelHi: "बनवाऊँगा", hint: "Construction cost is added (no land purchase)" },
-  { value: "not-needed", label: "No separate place needed", labelHi: "अलग जगह की ज़रूरत नहीं", hint: "Business runs from home or existing space" },
-  { value: "unsure", label: "Not sure yet", labelHi: "अभी पक्का नहीं", hint: "We'll estimate with a typical arrangement" },
+  { value: "own", label: "I already have it", labelHi: "मेरे पास जगह पहले से है", hint: "Land/shop already owned — no purchase cost added" },
+  { value: "rent", label: "I will rent", labelHi: "मैं जगह किराये पर लूँगा", hint: "Monthly rent is included in running costs" },
+  { value: "buy", label: "I will buy", labelHi: "मैं जगह खरीदूँगा", hint: "Purchase cost is added to the setup requirement" },
+  { value: "build", label: "I will build / construct", labelHi: "मैं जगह बनाऊँगा / निर्माण करूँगा", hint: "Construction cost is added (no land purchase)" },
+  { value: "not-needed", label: "No separate place needed", labelHi: "अलग जगह की जरूरत नहीं है", hint: "Business runs from home or existing space" },
+  { value: "unsure", label: "Not sure yet", labelHi: "अभी तय नहीं है", hint: "We'll estimate with a typical arrangement" },
 ];
 
 /** Cost breakdown weights — fractions of the total setup requirement. */
@@ -207,13 +207,13 @@ export const BUSINESS_SUB_CATEGORIES: BusinessSubCategory[] = [
     "workspace", W(0.08, 0.18, 0.32, 0.14, 0.23), [30000, 50000], 9000, 0.55, 3, []),
 
   /* ── Agriculture Inputs ── */
-  def("seed-fertilizer", "retail", "agri-inputs", "Seed & Fertilizer Store", "बीज और खाद दुकान", "🌱",
+  def("seed-fertilizer", "retail", "agri-inputs", "Seed & Fertilizer Store", "बीज और खाद की दुकान", "🌱",
     "Seeds, fertilizers, and crop inputs for local farmers", "बीज, उर्वरक और कृषि इनपुट",
     "shop", W(0.1, 0.08, 0.08, 0.42, 0.27), [40000, 80000], 8000, 0.75, 2, []),
-  def("pesticide-store", "retail", "agri-inputs", "Pesticide Store", "कीटनाशक दुकान", "🧪",
+  def("pesticide-store", "retail", "agri-inputs", "Pesticide Store", "कीटनाशक की दुकान", "🧪",
     "Pesticides and plant-protection products (licensed)", "कीटनाशक और फसल सुरक्षा उत्पाद",
     "shop", W(0.1, 0.08, 0.08, 0.42, 0.27), [30000, 55000], 7000, 0.7, 2, []),
-  def("farm-equipment", "retail", "agri-inputs", "Farm Equipment & Tools", "कृषि उपकरण", "🚜",
+  def("farm-equipment", "retail", "agri-inputs", "Farm Equipment & Tools", "कृषि उपकरण और औज़ार", "🚜",
     "Small farm tools, pumps, sprayers and equipment", "कृषि उपकरण और औज़ार",
     "shop", W(0.1, 0.08, 0.18, 0.34, 0.25), [35000, 60000], 8000, 0.72, 2, []),
 

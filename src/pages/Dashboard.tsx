@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { formatIndianCurrency, getSeverityColor, getVerdictColor, getVerdictBg, getVerdictIcon } from "@/data/assessment";
 import type { Location } from "@/data/locations";
 import IndiaMap, { type MapPoint } from "@/components/IndiaMap";
@@ -11,6 +12,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import SchemesSection from "@/components/SchemesSection";
 import HyperlocalIntelligence from "@/components/HyperlocalIntelligence";
 import GramUdaanInsights from "@/components/GramUdaanInsights";
+import DataIntegrationCard from "@/components/DataIntegrationCard";
 import { useInView } from "@/hooks/useInView";
 import {
   Users, Lightbulb, ShieldCheck, AlertTriangle, Target,
@@ -29,53 +31,59 @@ import { ModuleEmptyState, StatCard } from "@/components/module-ui";
  * essentials and routes you to the right module.
  * ════════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
-  const { feasibility, location, business, capital, radius, subCategory } = useOnboarding();
+  const { t } = useLanguage();
+  const { feasibility, analysisResult, location, business, capital, radius, subCategory } = useOnboarding();
 
-  if (!feasibility || !business) {
+  if ((!feasibility && !analysisResult) || !business) {
     return (
       <ModuleEmptyState
-        title="Welcome to your GramUdaan workspace"
-        description="Tell us where you are, which business you are thinking about, and how much you can invest. GramUdaan will build a personalized feasibility and financial analysis — this dashboard then becomes your command centre."
+        title={t("dashboard.emptyTitle")}
+        description={t("dashboard.emptyDesc")}
         icon={<Store className="h-8 w-8 text-muted-foreground" />}
-        primaryLabel="Start Assessment"
+        primaryLabel={t("dashboard.startAssessment")}
       />
     );
   }
 
   const f = feasibility;
-  const locationLabel = location ? `${location.name}, ${location.district}` : "Selected Location";
-  const available = f.financial.availableContribution || capital || 0;
-  const projectCost = f.financial.totalProjectCost || 0;
-  const loanNeed = f.financial.potentialLoan || 0;
-  const monthlyRevenue = f.profitModel?.monthlyRevenue ?? f.financial.affordability?.expectedRevenue ?? null;
+  const locationLabel = location ? `${location.name}, ${location.district}` : t("dashboard.selectedLocation");
+  const available = analysisResult ? analysisResult.capitalFit.userCapital.value : (f?.financial.availableContribution || capital || 0);
+  const projectCost = analysisResult ? analysisResult.costs.totalSetupCost.value : (f?.financial.totalProjectCost || 0);
+  const loanNeed = analysisResult ? analysisResult.capitalFit.fundingGap.value : (f?.financial.potentialLoan || 0);
+  const monthlyRevenue = analysisResult ? analysisResult.revenue.monthlyRevenueEstimateMax.value : (f?.profitModel?.monthlyRevenue ?? f?.financial.affordability?.expectedRevenue ?? null);
+  const overallScore = analysisResult ? analysisResult.feasibilityScore.value : (f?.overallScore || 50);
+  const verdictCode: "good" | "caution" | "rethink" = analysisResult
+    ? (analysisResult.decision.code === "START" ? "good" : analysisResult.decision.code === "PROCEED_CAREFULLY" ? "caution" : "rethink")
+    : (f?.verdict || "caution");
+  const verdictLabel = analysisResult ? analysisResult.decision.labelHi : (f?.verdictLabel || "सावधानी से आगे बढ़ें");
   const bizLabel = subCategory ? `${business.icon} ${business.name} · ${subCategory.name}` : `${business.icon} ${business.name}`;
 
-  const labelFor = (s: number) => (s >= 70 ? "Healthy" : s >= 50 ? "Moderate" : "Needs attention");
+  const labelFor = (s: number) => (s >= 70 ? t("dashboard.statusHealthy") : s >= 50 ? t("dashboard.statusModerate") : t("dashboard.statusNeedsAttention"));
 
   const primaryModules = [
     {
       to: "/analysis",
       icon: <ShieldCheck className="h-5 w-5" />,
-      title: "Business Analysis",
-      score: f.overallScore,
-      meta: `Feasibility ${f.overallScore}/100 · ${f.verdictLabel}`,
-      hint: "SWOT · risks · pricing · final decision",
+      title: t("dashboard.modAnalysisTitle"),
+      score: overallScore,
+      meta: `${t("dashboard.modAnalysisMeta")} ${overallScore}/100 · ${verdictLabel}`,
+      hint: t("dashboard.modAnalysisHint"),
     },
     {
       to: "/finance",
       icon: <IndianRupee className="h-5 w-5" />,
-      title: "Financial Planning",
-      score: f.subScores?.financialFitScore ?? 0,
-      meta: loanNeed > 0 ? `Funding need ${formatIndianCurrency(loanNeed)}` : "No external funding needed",
-      hint: "Cost breakdown · capital · profit & break-even",
+      title: t("dashboard.modFinanceTitle"),
+      score: f?.subScores?.financialFitScore ?? 70,
+      meta: loanNeed > 0 ? `${t("dashboard.modFinanceNeed")} ${formatIndianCurrency(loanNeed)}` : t("dashboard.modFinanceNoNeed"),
+      hint: t("dashboard.modFinanceHint"),
     },
     {
       to: "/market",
       icon: <Target className="h-5 w-5" />,
-      title: "Market & Competition",
-      score: f.subScores?.marketScore ?? 0,
-      meta: `${f.competition.density.toUpperCase()} competition · ${f.competition.totalBusinesses} nearby`, 
-      hint: "Local demand · competitors · map",
+      title: t("dashboard.modMarketTitle"),
+      score: f?.subScores?.marketScore ?? 75,
+      meta: `${(analysisResult?.nearbyBusinesses.densityCategory || f?.competition?.density || "LOW").toUpperCase()} ${t("dashboard.modMarketMeta").split(" · ")[0]} · ${analysisResult?.nearbyBusinesses.totalMappedBusinesses ?? f?.competition?.totalBusinesses ?? 0} ${t("dashboard.modMarketMeta").split(" · ")[1] || "nearby"}`, 
+      hint: t("dashboard.modMarketHint"),
     },
   ];
 
@@ -83,32 +91,32 @@ export default function Dashboard() {
     {
       to: "/advisor",
       icon: <Brain className="h-5 w-5" />,
-      title: "Ask AI Advisor",
-      hint: "Ask anything about this analysis — it knows your numbers.",
+      title: t("dashboard.modAdvisorTitle"),
+      hint: t("dashboard.modAdvisorHint"),
     },
     {
       to: "/plan",
       icon: <Calculator className="h-5 w-5" />,
-      title: "My Plan (8 steps)",
-      hint: "Guided journey from location to final action plan.",
+      title: t("dashboard.modPlanTitle"),
+      hint: t("dashboard.modPlanHint"),
     },
     {
       to: "/schemes",
       icon: <Store className="h-5 w-5" />,
-      title: "Schemes & Financing",
-      hint: "Government schemes and loan options matched to your profile.",
+      title: t("dashboard.modSchemesTitle"),
+      hint: t("dashboard.modSchemesHint"),
     },
     {
       to: "/compare",
-      icon: <ArrowRight className="h-5 w-5" />,
-      title: "Compare Businesses",
-      hint: "Your idea vs alternatives — side by side.",
+      icon: <TrendingUp className="h-5 w-5" />,
+      title: t("dashboard.modCompareTitle"),
+      hint: t("dashboard.modCompareHint"),
     },
     {
       to: "/reports",
       icon: <FileText className="h-5 w-5" />,
-      title: "Reports & Documents",
-      hint: "Decision report · business plan · loan application draft.",
+      title: t("dashboard.modReportsTitle"),
+      hint: t("dashboard.modReportsHint"),
     },
   ];
 
@@ -116,29 +124,32 @@ export default function Dashboard() {
     <div className="space-y-5">
       {/* ── Hero: your business at a glance ── */}
       <HeroScore
-        score={f.overallScore}
-        verdict={f.verdict}
-        verdictLabel={f.verdictLabel}
+        score={overallScore}
+        verdict={verdictCode}
+        verdictLabel={verdictLabel}
         businessName={bizLabel}
         locationName={locationLabel}
         radius={radius}
-        subScores={f.subScores}
+        subScores={f?.subScores}
       />
-      <BusinessAtGlance decision={f.decision} verdict={f.verdict} />
+      <BusinessAtGlance decision={f?.decision || { whyPoints: analysisResult?.decision.whyPointsHi || [], watchOuts: analysisResult?.decision.watchOutsHi || [] }} verdict={verdictCode} />
+
+      {/* ── Live External Data & Provenance Card ── */}
+      <DataIntegrationCard />
 
       {/* ── Key financial numbers ── */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatCard label="Your Capital" value={formatIndianCurrency(available)} sub={`for ${location ? location.name : "your location"}`} />
-        <StatCard label="Total Project Cost" value={formatIndianCurrency(projectCost)} sub="estimated setup + working capital" />
+        <StatCard label={t("dashboard.statYourCapital")} value={formatIndianCurrency(available)} sub={`${t("dashboard.statFor")} ${location ? location.name : t("dashboard.statYourLocation")}`} />
+        <StatCard label={t("dashboard.statTotalCost")} value={formatIndianCurrency(projectCost)} sub={t("dashboard.statTotalCostSub")} />
         {loanNeed > 0 ? (
-          <StatCard label="Funding Need" value={formatIndianCurrency(loanNeed)} tone="warning" sub="loan / scheme / partner gap" />
+          <StatCard label={t("dashboard.statFundingNeed")} value={formatIndianCurrency(loanNeed)} tone="warning" sub={t("dashboard.statFundingNeedSub")} />
         ) : (
-          <StatCard label="Funding Gap" value="₹0 — covered" tone="positive" sub="no loan needed on current inputs" />
+          <StatCard label={t("dashboard.statFundingGap")} value={t("dashboard.statFundingGapCovered")} tone="positive" sub={t("dashboard.statFundingGapNoLoan")} />
         )}
         {monthlyRevenue != null ? (
-          <StatCard label="Est. Monthly Revenue" value={formatIndianCurrency(monthlyRevenue)} tone="brand" sub="at recommended scale" />
+          <StatCard label={t("dashboard.statEstRevenue")} value={formatIndianCurrency(monthlyRevenue)} tone="brand" sub={t("dashboard.statEstRevenueScale")} />
         ) : (
-          <StatCard label="Est. Monthly Revenue" value="—" sub="unlock after business-type step" />
+          <StatCard label={t("dashboard.statEstRevenue")} value="—" sub={t("dashboard.statEstRevenueUnlock")} />
         )}
       </div>
 
@@ -146,8 +157,8 @@ export default function Dashboard() {
       <div>
         <SectionTitle
           icon={<LayoutDashboard className="h-4 w-4" />}
-          title="What is happening with my business?"
-          sub="Your feasibility, finances and market at a glance — dive into any module for details."
+          title={t("dashboard.sectionHappeningTitle")}
+          sub={t("dashboard.sectionHappeningSub")}
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {primaryModules.map((m) => (
@@ -169,7 +180,7 @@ export default function Dashboard() {
               <p className="text-xs font-semibold text-emerald-700">{m.meta}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">{m.hint}</p>
               <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                Open module <ArrowUpRight className="h-3 w-3" />
+                {t("dashboard.openModule")} <ArrowUpRight className="h-3 w-3" />
               </span>
             </NavLink>
           ))}
@@ -180,8 +191,8 @@ export default function Dashboard() {
       <div>
         <SectionTitle
           icon={<Zap className="h-4 w-4" />}
-          title="Explore every module"
-          sub="Each module is powered by this same analysis — change one input and everything updates."
+          title={t("dashboard.sectionExploreTitle")}
+          sub={t("dashboard.sectionExploreSub")}
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {secondaryModules.map((m) => (
@@ -203,18 +214,18 @@ export default function Dashboard() {
       </div>
 
       {/* ── What should you do next? ── */}
-      <ActionPlanSection nextSteps={f.nextSteps} verdict={f.verdict} />
+      <ActionPlanSection nextSteps={f?.nextSteps || ["व्यवसाय योजना की समीक्षा करें", "स्थानीय ग्राहकों से बात करें"]} verdict={verdictCode} />
 
       <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white px-5 py-4 sm:flex-row">
         <p className="text-sm font-semibold text-foreground">
-          Ready to change an input? <span className="font-normal text-muted-foreground">Recalculate the whole plan in the guided journey.</span>
+          {t("dashboard.recalcPrompt")} <span className="font-normal text-muted-foreground">{t("dashboard.recalcSub")}</span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Link to="/plan" className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
-            Open My Plan <ArrowRight className="h-3.5 w-3.5" />
+            {t("dashboard.openMyPlan")} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
           <Link to="/onboarding" className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-4 py-2 text-xs font-bold text-foreground hover:bg-muted">
-            Edit Assessment
+            {t("dashboard.editAssessment")}
           </Link>
         </div>
       </div>
@@ -240,6 +251,7 @@ function SectionTitle({ icon, title, sub }: { icon: React.ReactNode; title: stri
  * modules below replace this long-page experience.
  * ════════════════════════════════════════════════════════════════════════════ */
 export function AnalysisDashboardView() {
+  const { t } = useLanguage();
   const { feasibility, location, business, capital, radius } = useOnboarding();
 
   if (!feasibility) {
@@ -251,15 +263,15 @@ export function AnalysisDashboardView() {
             <div className="h-16 w-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
               <Store className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-bold text-foreground mb-2">No Analysis Found</h2>
+            <h2 className="text-xl font-bold text-foreground mb-2">{t("dashboard.legacyNoAnalysisTitle")}</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              You haven't run an assessment yet. Tell us about your business idea and we will analyze it for you.
+              {t("dashboard.legacyNoAnalysisDesc")}
             </p>
             <Link
               to="/onboarding"
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Start Assessment
+              {t("dashboard.startAssessment")}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -269,7 +281,7 @@ export function AnalysisDashboardView() {
   }
 
   const f = feasibility;
-  const locationLabel = location ? `${location.name}, ${location.district}` : "Selected Location";
+  const locationLabel = location ? `${location.name}, ${location.district}` : t("dashboard.selectedLocation");
 
   return (
     <div className="min-h-screen bg-background">
@@ -280,7 +292,7 @@ export function AnalysisDashboardView() {
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6">
           <Link to="/" className="hover:text-foreground transition-colors"><Home className="h-3.5 w-3.5" /></Link>
           <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground font-medium">Feasibility Dashboard</span>
+          <span className="text-foreground font-medium">{t("dashboard.legacyBreadcrumb")}</span>
         </div>
 
         {/* ═══ HERO SCORE ═══ */}
@@ -288,7 +300,7 @@ export function AnalysisDashboardView() {
           score={f.overallScore}
           verdict={f.verdict}
           verdictLabel={f.verdictLabel}
-          businessName={business?.name || "Your Business"}
+          businessName={business?.name || t("dashboard.yourBusiness")}
           locationName={locationLabel}
           radius={radius}
           subScores={f.subScores}
@@ -301,7 +313,7 @@ export function AnalysisDashboardView() {
         <div className="mt-4 flex items-center gap-3 flex-wrap">
           <DataConfidenceBadge type="estimated" confidence="medium" />
           <p className="text-xs text-muted-foreground">
-            Analysis based on simulated market data for demonstration purposes
+            {t("dashboard.legacyDemoDataNote")}
           </p>
         </div>
 
@@ -358,23 +370,23 @@ export function AnalysisDashboardView() {
             to="/plan"
             className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/15"
           >
-            Open My Plan
+            {t("dashboard.openMyPlan")}
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link to="/advisor" className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
-            Ask AI Advisor
+            {t("dashboard.ctaAskAdvisor")}
           </Link>
           <Link to="/what-if" className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
-            Try What-If
+            {t("dashboard.ctaTryWhatIf")}
           </Link>
           <Link to="/compare" className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
-            Compare Businesses
+            {t("dashboard.ctaCompare")}
           </Link>
           <Link to="/report" className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
-            View Report
+            {t("dashboard.ctaViewReport")}
           </Link>
           <Link to="/onboarding" className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
-            New Assessment
+            {t("dashboard.ctaNewAssessment")}
           </Link>
         </div>
       </main>
@@ -392,17 +404,18 @@ export function HeroScore({ score, verdict, verdictLabel, businessName, location
     riskScore: number; financialFitScore: number;
   };
 }) {
+  const { t } = useLanguage();
   const { count: animatedScore, ref: countRef } = useCountUp(score, 1200);
   const circumference = 2 * Math.PI * 45;
   const offset = circumference - (score / 100) * circumference;
   const { ref: viewRef, isInView } = useInView();
 
   const miniScores = subScores ? [
-    { label: "Market", value: subScores.marketScore },
-    { label: "Opportunity", value: subScores.opportunityScore },
-    { label: "Competition", value: subScores.competitionScore },
-    { label: "Risk", value: subScores.riskScore },
-    { label: "Financial Fit", value: subScores.financialFitScore },
+    { label: t("dashboard.scoreMarket"), value: subScores.marketScore },
+    { label: t("dashboard.scoreOpportunity"), value: subScores.opportunityScore },
+    { label: t("dashboard.scoreCompetition"), value: subScores.competitionScore },
+    { label: t("dashboard.scoreRisk"), value: subScores.riskScore },
+    { label: t("dashboard.scoreFinancialFit"), value: subScores.financialFitScore },
   ] : [];
 
   return (
@@ -430,12 +443,12 @@ export function HeroScore({ score, verdict, verdictLabel, businessName, location
 
         {/* Info */}
         <div className="flex-1 text-center sm:text-left">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">Business Feasibility</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">{t("dashboard.heroFeasibility")}</p>
           <h1 className={cn("text-2xl sm:text-3xl font-bold font-serif-display", getVerdictColor(verdict))}>
             {verdictLabel}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {businessName} · {locationName} · {radius} km analysis radius
+            {businessName} · {locationName} · {radius} {t("dashboard.heroAnalysisRadius")}
           </p>
         </div>
       </div>
@@ -473,29 +486,30 @@ export function HeroScore({ score, verdict, verdictLabel, businessName, location
 
 /* ═══ BUSINESS AT A GLANCE ═══ */
 export function BusinessAtGlance({ decision, verdict }: { decision: { whyPoints: string[]; watchOuts: string[] }; verdict: string }) {
+  const { t } = useLanguage();
   const signals = [
     {
       icon: <CheckCircle2 className="h-4 w-4" />,
-      label: "STRONGEST SIGNAL",
-      text: decision.whyPoints[0] || "Positive market indicators",
+      label: t("dashboard.glanceStrongestSignal"),
+      text: decision.whyPoints[0] || t("dashboard.glancePositiveIndicators"),
       color: "bg-emerald-50 border-emerald-200 text-emerald-700",
       iconColor: "text-emerald-500",
     },
     {
       icon: <AlertTriangle className="h-4 w-4" />,
-      label: "WATCH CLOSELY",
-      text: decision.watchOuts[0] || "Some risks to monitor",
+      label: t("dashboard.glanceWatchClosely"),
+      text: decision.watchOuts[0] || t("dashboard.glanceMonitorRisks"),
       color: "bg-amber-50 border-amber-200 text-amber-700",
       iconColor: "text-amber-500",
     },
     {
       icon: <IndianRupee className="h-4 w-4" />,
-      label: "FINANCIAL POSITION",
+      label: t("dashboard.glanceFinancialPos"),
       text: verdict === "good"
-        ? "Current contribution appears manageable"
+        ? t("dashboard.glanceGoodPos")
         : verdict === "caution"
-          ? "Financial structure needs careful planning"
-          : "Consider adjusting your investment level",
+          ? t("dashboard.glanceCautionPos")
+          : t("dashboard.glanceRethinkPos"),
       color: "bg-blue-50 border-blue-200 text-blue-700",
       iconColor: "text-blue-500",
     },
@@ -503,7 +517,7 @@ export function BusinessAtGlance({ decision, verdict }: { decision: { whyPoints:
 
   return (
     <div className="mt-5 rounded-2xl border border-border bg-white p-5 sm:p-6">
-      <h3 className="text-sm font-bold text-foreground mb-3 font-serif-display">Your Business at a Glance</h3>
+      <h3 className="text-sm font-bold text-foreground mb-3 font-serif-display">{t("dashboard.glanceTitle")}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {signals.map((s) => (
           <div key={s.label} className={cn("rounded-xl border p-4", s.color)}>
@@ -523,6 +537,7 @@ export function BusinessAtGlance({ decision, verdict }: { decision: { whyPoints:
 export function DecisionSection({ f, business, locationLabel }: {
   f: any; business: any; locationLabel: string; verdict: "good" | "caution" | "rethink";
 }) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-2xl border-2 border-border bg-white p-6 sm:p-8 animate-slide-up">
       <div className="flex items-start gap-4 mb-6">
@@ -533,9 +548,9 @@ export function DecisionSection({ f, business, locationLabel }: {
           <span className="text-3xl">{getVerdictIcon(f.verdict)}</span>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Final Decision</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("dashboard.decisionFinal")}</p>
           <h2 className={cn("text-2xl sm:text-3xl font-bold mt-1 font-serif-display", getVerdictColor(f.verdict))}>
-            {f.verdict === "good" ? "GOOD TO GO" : f.verdict === "caution" ? "PROCEED CAREFULLY" : "CONSIDER AN ALTERNATIVE"}
+            {f.verdict === "good" ? t("dashboard.decisionGood") : f.verdict === "caution" ? t("dashboard.decisionCaution") : t("dashboard.decisionRethink")}
           </h2>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
             {f.overallScore}/100 · {business?.name} · {locationLabel}
@@ -549,7 +564,7 @@ export function DecisionSection({ f, business, locationLabel }: {
         <div>
           <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            Why we recommend this
+            {t("dashboard.decisionWhyRecommend")}
           </h3>
           <ul className="space-y-2">
             {f.decision.whyPoints.map((point: string, i: number) => (
@@ -563,7 +578,7 @@ export function DecisionSection({ f, business, locationLabel }: {
         <div>
           <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Watch before investing
+            {t("dashboard.decisionWatchBefore")}
           </h3>
           <ul className="space-y-2">
             {f.decision.watchOuts.map((point: string, i: number) => (
@@ -577,8 +592,8 @@ export function DecisionSection({ f, business, locationLabel }: {
       </div>
 
       <div className="mt-6 rounded-xl bg-[#F4F8EF] border border-border/60 p-4">
-        <p className="text-xs font-semibold text-foreground mb-1">Recommended Next Step</p>
-        <p className="text-sm text-muted-foreground">Validate local demand with 10–15 potential customers before investing.</p>
+        <p className="text-xs font-semibold text-foreground mb-1">{t("dashboard.decisionNextStep")}</p>
+        <p className="text-sm text-muted-foreground">{t("dashboard.decisionNextStepText")}</p>
       </div>
     </div>
   );
@@ -586,16 +601,17 @@ export function DecisionSection({ f, business, locationLabel }: {
 
 /* ═══ MARKET REACH ═══ */
 export function MarketReachSection({ f }: { f: any }) {
+  const { t } = useLanguage();
   const { ref, isInView } = useInView();
   const householdPct = Math.min(100, (f.marketReach.households / 5000) * 100);
   const customerPct = Math.min(100, (f.marketReach.potentialCustomers / 20000) * 100);
 
   return (
-    <SectionCard icon={<Users className="h-5 w-5" />} title="Market Reach" badge="Estimated" score={f.subScores?.marketScore}>
+    <SectionCard icon={<Users className="h-5 w-5" />} title={t("dashboard.marketReachTitle")} badge={t("dashboard.badgeEstimated")} score={f.subScores?.marketScore}>
       <div ref={ref} className="mb-4">
         <div className="mb-3">
           <div className="flex items-baseline justify-between mb-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Households</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("dashboard.marketHouseholds")}</p>
             <p className="text-lg font-bold text-foreground">{f.marketReach.households.toLocaleString("en-IN")}</p>
           </div>
           <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -604,7 +620,7 @@ export function MarketReachSection({ f }: { f: any }) {
         </div>
         <div>
           <div className="flex items-baseline justify-between mb-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Potential Customers</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("dashboard.marketCustomers")}</p>
             <p className="text-lg font-bold text-foreground">{f.marketReach.potentialCustomers.toLocaleString("en-IN")}</p>
           </div>
           <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -614,12 +630,12 @@ export function MarketReachSection({ f }: { f: any }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <MetricBlock label="Population" value={f.marketReach.population.toLocaleString("en-IN")} />
-        <MetricBlock label="Nearby Villages" value={f.marketReach.nearbyVillages.toString()} />
+        <MetricBlock label={t("dashboard.marketPopulation")} value={f.marketReach.population.toLocaleString("en-IN")} />
+        <MetricBlock label={t("dashboard.marketNearbyVillages")} value={f.marketReach.nearbyVillages.toString()} />
       </div>
 
       <div className="mb-3">
-        <p className="text-xs font-semibold text-foreground mb-1.5">Customer Groups</p>
+        <p className="text-xs font-semibold text-foreground mb-1.5">{t("dashboard.marketCustomerGroups")}</p>
         <div className="flex flex-wrap gap-1.5">
           {f.marketReach.customerGroups.map((g: string) => (
             <span key={g} className="rounded-full bg-primary/5 border border-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">{g}</span>
@@ -628,7 +644,7 @@ export function MarketReachSection({ f }: { f: any }) {
       </div>
 
       <div className="mb-3">
-        <p className="text-xs font-semibold text-foreground mb-1.5">Distribution Channels</p>
+        <p className="text-xs font-semibold text-foreground mb-1.5">{t("dashboard.marketDistribution")}</p>
         <div className="flex flex-wrap gap-1.5">
           {f.marketReach.distributionChannels.map((d: string) => (
             <span key={d} className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">{d}</span>
@@ -643,8 +659,9 @@ export function MarketReachSection({ f }: { f: any }) {
 
 /* ═══ OPPORTUNITY ═══ */
 export function OpportunitySection({ f }: { f: any }) {
+  const { t } = useLanguage();
   return (
-    <SectionCard icon={<Lightbulb className="h-5 w-5" />} title="Opportunity" badge="AI Insight" badgeType="ai" score={f.subScores?.opportunityScore}>
+    <SectionCard icon={<Lightbulb className="h-5 w-5" />} title={t("dashboard.oppTitle")} badge={t("dashboard.badgeAiInsight")} badgeType="ai" score={f.subScores?.opportunityScore}>
       {/* Market Gap Card */}
       <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-primary/5 border border-emerald-200 p-4 mb-4">
         <div className="flex items-start gap-3">
@@ -652,7 +669,7 @@ export function OpportunitySection({ f }: { f: any }) {
             <Lightbulb className="h-4 w-4 text-emerald-600" />
           </div>
           <div>
-            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Market Gap</p>
+            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">{t("dashboard.oppMarketGap")}</p>
             <p className="text-sm font-semibold text-emerald-800 mt-0.5">💡 {f.opportunity.underserved}</p>
           </div>
         </div>
@@ -660,12 +677,12 @@ export function OpportunitySection({ f }: { f: any }) {
 
       {f.opportunity.highCompetitionWarning && (
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-4">
-          <p className="text-xs font-bold text-amber-700 mb-0.5">⚠️ Competition Alert</p>
+          <p className="text-xs font-bold text-amber-700 mb-0.5">⚠️ {t("dashboard.oppAlert")}</p>
           <p className="text-xs text-amber-600">{f.opportunity.highCompetitionWarning}</p>
         </div>
       )}
 
-      <p className="text-xs font-semibold text-foreground mb-2">Existing Businesses in Area</p>
+      <p className="text-xs font-semibold text-foreground mb-2">{t("dashboard.oppExisting")}</p>
       <div className="space-y-2 mb-3">
         {f.opportunity.existingBusinesses.map((b: any) => (
           <div key={b.name} className="flex items-center gap-2">
@@ -679,11 +696,11 @@ export function OpportunitySection({ f }: { f: any }) {
       </div>
 
       <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 mb-2">
-        <p className="text-xs font-semibold text-primary mb-0.5">✦ AI Insight</p>
+        <p className="text-xs font-semibold text-primary mb-0.5">{t("dashboard.oppAiInsight")}</p>
         <p className="text-xs text-muted-foreground">
           {f.opportunity.score >= 75
-            ? "Your selected category has relatively low local competition compared with nearby business categories."
-            : "Competition is moderate. Differentiation and service quality will be key to success."}
+            ? t("dashboard.oppHighText")
+            : t("dashboard.oppModText")}
         </p>
       </div>
 
@@ -694,23 +711,24 @@ export function OpportunitySection({ f }: { f: any }) {
 
 /* ═══ SWOT ═══ */
 export function SWOTSection({ f }: { f: any }) {
+  const { t } = useLanguage();
   return (
-    <SectionCard icon={<ShieldCheck className="h-5 w-5" />} title="SWOT Analysis" badge="Personalized" className="rounded-2xl border border-border bg-white p-5 sm:p-6">
+    <SectionCard icon={<ShieldCheck className="h-5 w-5" />} title={t("dashboard.swotTitle")} badge={t("dashboard.badgePersonalized")} className="rounded-2xl border border-border bg-white p-5 sm:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <SWOTQuadrant title="Strengths" items={f.swot.strengths} color="emerald" />
-        <SWOTQuadrant title="Weaknesses" items={f.swot.weaknesses} color="red" />
-        <SWOTQuadrant title="Opportunities" items={f.swot.opportunities} color="blue" />
-        <SWOTQuadrant title="Threats" items={f.swot.threats} color="amber" />
+        <SWOTQuadrant title={t("dashboard.swotStrengths")} items={f.swot.strengths} color="emerald" />
+        <SWOTQuadrant title={t("dashboard.swotWeaknesses")} items={f.swot.weaknesses} color="red" />
+        <SWOTQuadrant title={t("dashboard.swotOpportunities")} items={f.swot.opportunities} color="blue" />
+        <SWOTQuadrant title={t("dashboard.swotThreats")} items={f.swot.threats} color="amber" />
       </div>
       <div className="rounded-xl bg-primary/5 border border-primary/10 p-3">
-        <p className="text-xs font-semibold text-primary mb-0.5">✦ AI Insight</p>
+        <p className="text-xs font-semibold text-primary mb-0.5">{t("dashboard.oppAiInsight")}</p>
         <p className="text-xs text-muted-foreground">
-          Your biggest advantage is local demand; your biggest concern is supply reliability.
+          {t("dashboard.swotAiInsight")}
         </p>
       </div>
       <div className="mt-3">
         <DataConfidenceBadge type="ai-insight" confidence="medium" />
-        <p className="text-[11px] text-muted-foreground mt-1">Personalized based on your location + business + capital + local data</p>
+        <p className="text-[11px] text-muted-foreground mt-1">{t("dashboard.swotPersonalizedNote")}</p>
       </div>
     </SectionCard>
   );
@@ -742,11 +760,12 @@ function SWOTQuadrant({ title, items, color }: { title: string; items: string[];
 
 /* ═══ LOCAL RISKS ═══ */
 export function RisksSection({ f }: { f: any }) {
+  const { t } = useLanguage();
   const severityIcon: Record<string, string> = { high: "🔴", medium: "🟠", low: "🟢" };
   const severityBorder: Record<string, string> = { high: "border-l-red-400", medium: "border-l-amber-400", low: "border-l-emerald-400" };
 
   return (
-    <SectionCard icon={<AlertTriangle className="h-5 w-5" />} title="Local Risks" badge="Estimated" score={f.subScores?.riskScore}>
+    <SectionCard icon={<AlertTriangle className="h-5 w-5" />} title={t("dashboard.risksTitle")} badge={t("dashboard.badgeEstimated")} score={f.subScores?.riskScore}>
       <div className="space-y-3">
         {f.risks.map((risk: any) => (
           <div key={risk.id} className={cn("rounded-xl border border-border border-l-4 p-4 transition-all hover:shadow-sm", severityBorder[risk.severity])}>
@@ -754,12 +773,12 @@ export function RisksSection({ f }: { f: any }) {
               <span>{severityIcon[risk.severity]}</span>
               <span className="text-sm font-bold text-foreground">{risk.name}</span>
               <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border", getSeverityColor(risk.severity))}>
-                {risk.severity.toUpperCase()}
+                {risk.severity === "high" ? t("dashboard.severityHigh") : risk.severity === "medium" ? t("dashboard.severityMedium") : t("dashboard.severityLow")}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{risk.explanation}</p>
             <div className="rounded-lg bg-primary/5 border border-primary/10 p-2.5">
-              <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">What you can do</p>
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">{t("dashboard.risksWhatToDo")}</p>
               <p className="text-xs font-medium text-primary/80">{risk.mitigation}</p>
             </div>
           </div>
@@ -792,6 +811,7 @@ function competitorPoints(
 }
 
 export function CompetitionSection({ f, location, radius }: { f: any; location: Location | null; radius: number }) {
+  const { t } = useLanguage();
   const densityColors: Record<string, string> = { high: "text-red-600", medium: "text-amber-600", low: "text-emerald-600" };
   const densityBg: Record<string, string> = { high: "bg-red-50 border-red-200", medium: "bg-amber-50 border-amber-200", low: "bg-emerald-50 border-emerald-200" };
 
@@ -806,7 +826,7 @@ export function CompetitionSection({ f, location, radius }: { f: any; location: 
   );
 
   return (
-    <SectionCard icon={<Target className="h-5 w-5" />} title="Competition" badge="Estimated" score={f.subScores?.competitionScore}>
+    <SectionCard icon={<Target className="h-5 w-5" />} title={t("dashboard.compTitle")} badge={t("dashboard.badgeEstimated")} score={f.subScores?.competitionScore}>
       {/* Real geographic map: selected location marker + analysis radius + estimated competitors */}
       {centerLoc ? (
         <div className="mb-4">
@@ -817,23 +837,23 @@ export function CompetitionSection({ f, location, radius }: { f: any; location: 
             className="h-64 sm:h-72"
           />
           <p className="mt-1.5 px-1 text-[10px] text-muted-foreground">
-            Map data © OpenStreetMap contributors · competitor positions are estimated from distance data
+            {t("dashboard.compMapAttribution")}
           </p>
         </div>
       ) : (
         <div className="mb-4 rounded-xl border border-border/60 bg-muted/40 px-4 py-6 text-center text-xs text-muted-foreground">
-          Location coordinates unavailable — competitor map can't be drawn for this place.
+          {t("dashboard.compNoCoords")}
         </div>
       )}
 
       <div className={cn("rounded-xl border p-3 mb-4", densityBg[f.competition.density])}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-foreground">{f.competition.totalBusinesses} competitors within analysis radius</p>
-            <p className="text-[11px] text-muted-foreground">Estimated competitor density</p>
+            <p className="text-xs font-bold text-foreground">{f.competition.totalBusinesses} {t("dashboard.compCompetitorsWithin")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("dashboard.compEstimatedDensity")}</p>
           </div>
           <span className={cn("text-sm font-bold uppercase", densityColors[f.competition.density])}>
-            {f.competition.density}
+            {f.competition.density === "high" ? t("dashboard.densityHigh") : f.competition.density === "medium" ? t("dashboard.densityMedium") : t("dashboard.densityLow")}
           </span>
         </div>
       </div>
@@ -859,29 +879,30 @@ export function CompetitionSection({ f, location, radius }: { f: any; location: 
 
 /* ═══ PRICING ═══ */
 export function PricingSection({ f }: { f: any }) {
+  const { t } = useLanguage();
   return (
-    <SectionCard icon={<TrendingUp className="h-5 w-5" />} title="Product Pricing" badge="AI Insight" badgeType="ai" className="rounded-2xl border border-border bg-white p-5 sm:p-6">
+    <SectionCard icon={<TrendingUp className="h-5 w-5" />} title={t("dashboard.pricingTitle")} badge={t("dashboard.badgeAiInsight")} badgeType="ai" className="rounded-2xl border border-border bg-white p-5 sm:p-6">
       {f.pricing.unit && (
-        <p className="text-xs text-muted-foreground mb-4">Unit: {f.pricing.unit}</p>
+        <p className="text-xs text-muted-foreground mb-4">{t("dashboard.pricingUnit")} {f.pricing.unit}</p>
       )}
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="rounded-xl bg-muted/50 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Regional Price</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("dashboard.pricingRegional")}</p>
           <p className="text-lg font-bold text-foreground mt-1">{f.pricing.regionalPrice}</p>
         </div>
         <div className="rounded-xl bg-muted/50 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Competitor Range</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("dashboard.pricingRange")}</p>
           <p className="text-sm font-bold text-foreground mt-1">{f.pricing.competitorRange}</p>
         </div>
         <div className="rounded-xl bg-primary/5 border border-primary/10 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">Recommended</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("dashboard.pricingRecommended")}</p>
           <p className="text-lg font-bold text-primary mt-1">{f.pricing.recommendedPrice}</p>
         </div>
       </div>
 
       <div className="rounded-xl bg-primary/5 border border-primary/10 p-4 mb-3">
-        <p className="text-xs font-semibold text-primary mb-1">Why this price?</p>
+        <p className="text-xs font-semibold text-primary mb-1">{t("dashboard.pricingWhy")}</p>
         <p className="text-xs text-muted-foreground leading-relaxed">{f.pricing.explanation}</p>
       </div>
 
@@ -892,14 +913,15 @@ export function PricingSection({ f }: { f: any }) {
 
 /* ═══ FINANCIAL OVERVIEW ═══ */
 export function FinancialOverviewSection({ f }: { f: any }) {
+  const { t } = useLanguage();
   return (
-    <SectionCard icon={<IndianRupee className="h-5 w-5" />} title="Financial Overview" badge="Engine" badgeType="verified" className="rounded-2xl border border-border bg-white p-5 sm:p-6 lg:col-span-2">
+    <SectionCard icon={<IndianRupee className="h-5 w-5" />} title={t("dashboard.finTitle")} badge={t("dashboard.badgeEngine")} badgeType="verified" className="rounded-2xl border border-border bg-white p-5 sm:p-6 lg:col-span-2">
       {/* Funding Structure */}
       {f.financial.projectCostBreakdown && (
         <div className="mb-6">
           <h4 className="text-xs font-bold text-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
             <Calculator className="h-3.5 w-3.5" />
-            Funding Structure
+            {t("dashboard.finFundingStructure")}
           </h4>
 
           {f.financial.projectCostBreakdown.isLimitExceeded && (
@@ -907,10 +929,9 @@ export function FinancialOverviewSection({ f }: { f: any }) {
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-xs font-bold text-amber-700">Scheme Limit Exceeded</p>
+                  <p className="text-xs font-bold text-amber-700">{t("dashboard.finLimitExceeded")}</p>
                   <p className="text-xs text-amber-600 mt-1">
-                    Calculated project cost ({formatIndianCurrency(f.financial.projectCostBreakdown.rawProjectCost)}) exceeds the scheme maximum.
-                    A compliant structure is shown below.
+                    {t("dashboard.finLimitExceededDesc").replace("{cost}", formatIndianCurrency(f.financial.projectCostBreakdown.rawProjectCost))}
                   </p>
                 </div>
               </div>
@@ -919,12 +940,12 @@ export function FinancialOverviewSection({ f }: { f: any }) {
 
           <div className="grid grid-cols-3 gap-3 mb-4">
             <MetricBlock
-              label="Your Contribution"
+              label={t("dashboard.finYourContribution")}
               value={formatIndianCurrency(f.financial.projectCostBreakdown.entrepreneurContribution)}
               highlight
             />
             <MetricBlock
-              label="Total Project Cost"
+              label={t("dashboard.finTotalProjectCost")}
               value={formatIndianCurrency(
                 f.financial.projectCostBreakdown.isLimitExceeded
                   ? f.financial.projectCostBreakdown.compliantProjectCost || f.financial.totalProjectCost
@@ -932,7 +953,7 @@ export function FinancialOverviewSection({ f }: { f: any }) {
               )}
             />
             <MetricBlock
-              label="Agency Funding"
+              label={t("dashboard.finAgencyFunding")}
               value={formatIndianCurrency(
                 f.financial.projectCostBreakdown.isLimitExceeded
                   ? f.financial.projectCostBreakdown.compliantAgencyFunding || f.financial.potentialLoan
@@ -948,13 +969,13 @@ export function FinancialOverviewSection({ f }: { f: any }) {
         <div className="mb-6">
           <h4 className="text-xs font-bold text-foreground mb-3 flex items-center gap-2 uppercase tracking-wider">
             <Clock className="h-3.5 w-3.5" />
-            Loan Snapshot — {f.financial.recommendedScheme}
+            {t("dashboard.finLoanSnapshot")} — {f.financial.recommendedScheme}
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricBlock label="Loan Amount" value={formatIndianCurrency(f.financial.loanDetails.amount)} />
-            <MetricBlock label="Interest Rate" value={`${f.financial.loanDetails.interestRate}%`} />
-            <MetricBlock label="Tenure" value={`${f.financial.loanDetails.tenure} years`} />
-            <MetricBlock label="Moratorium" value={`${f.financial.loanDetails.moratorium} months`} />
+            <MetricBlock label={t("dashboard.finLoanAmount")} value={formatIndianCurrency(f.financial.loanDetails.amount)} />
+            <MetricBlock label={t("dashboard.finInterestRate")} value={`${f.financial.loanDetails.interestRate}%`} />
+            <MetricBlock label={t("dashboard.finTenure")} value={`${f.financial.loanDetails.tenure} ${t("dashboard.finYears")}`} />
+            <MetricBlock label={t("dashboard.finMoratorium")} value={`${f.financial.loanDetails.moratorium} ${t("dashboard.finMonths")}`} />
           </div>
         </div>
       )}
@@ -962,7 +983,7 @@ export function FinancialOverviewSection({ f }: { f: any }) {
       {/* Monthly Affordability */}
       {f.financial.affordability && (
         <div className="mb-4">
-          <h4 className="text-xs font-bold text-foreground mb-3 uppercase tracking-wider">Monthly Affordability</h4>
+          <h4 className="text-xs font-bold text-foreground mb-3 uppercase tracking-wider">{t("dashboard.finMonthlyAffordability")}</h4>
           <div className={cn(
             "rounded-xl border p-5",
             f.financial.affordability.rating === "comfortable"
@@ -983,15 +1004,15 @@ export function FinancialOverviewSection({ f }: { f: any }) {
 
             {/* Cash flow visual breakdown */}
             <div className="space-y-3">
-              <CashFlowRow label="Expected Revenue" value={f.financial.affordability.expectedRevenue} type="positive" />
-              <CashFlowRow label="Operating Costs" value={f.financial.affordability.operatingCosts} type="negative" />
+              <CashFlowRow label={t("dashboard.finExpectedRevenue")} value={f.financial.affordability.expectedRevenue} type="positive" />
+              <CashFlowRow label={t("dashboard.finOperatingCosts")} value={f.financial.affordability.operatingCosts} type="negative" />
               <div className="border-t border-current/10 pt-2">
-                <CashFlowRow label="Estimated Cash Flow" value={f.financial.affordability.cashFlow} type="neutral" bold />
+                <CashFlowRow label={t("dashboard.finEstimatedCashFlow")} value={f.financial.affordability.cashFlow} type="neutral" bold />
               </div>
-              <CashFlowRow label="Loan Repayment" value={f.financial.affordability.monthlyRepayment} type="negative" />
+              <CashFlowRow label={t("dashboard.finLoanRepayment")} value={f.financial.affordability.monthlyRepayment} type="negative" />
               <div className="border-t border-current/10 pt-2">
                 <CashFlowRow
-                  label="Net Monthly Position"
+                  label={t("dashboard.finNetMonthly")}
                   value={f.financial.affordability.surplus}
                   type={f.financial.affordability.surplus >= 0 ? "positive" : "negative"}
                   bold
@@ -1001,7 +1022,7 @@ export function FinancialOverviewSection({ f }: { f: any }) {
 
             {f.financial.affordability.assumptions.length > 0 && (
               <div className="mt-4 pt-3 border-t border-current/10">
-                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Assumptions</p>
+                <p className="text-[10px] font-semibold text-muted-foreground mb-1">{t("dashboard.finAssumptions")}</p>
                 <ul className="text-[10px] text-muted-foreground space-y-0.5">
                   {f.financial.affordability.assumptions.map((a: string, i: number) => (
                     <li key={i}>• {a}</li>
@@ -1016,23 +1037,23 @@ export function FinancialOverviewSection({ f }: { f: any }) {
       <div className="mt-3">
         <DataConfidenceBadge type="verified" />
         <p className="text-[11px] text-muted-foreground mt-1">
-          Financial calculations are deterministic and based on PMEGP/MUDRA scheme rules
+          {t("dashboard.finDeterministicNote")}
         </p>
       </div>
 
       {/* Loan application entry */}
       <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-primary/10 bg-primary/[0.03] p-3.5">
         <div className="flex-1">
-          <p className="text-xs font-bold text-foreground">Prepare your loan application</p>
+          <p className="text-xs font-bold text-foreground">{t("dashboard.finPrepareTitle")}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Pre-fill an editable application draft from this financial structure and your matched schemes.
+            {t("dashboard.finPrepareDesc")}
           </p>
         </div>
         <Link
           to="/application"
           className="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
         >
-          Prepare Loan Application
+          {t("dashboard.finPrepareButton")}
           <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
       </div>
@@ -1041,6 +1062,7 @@ export function FinancialOverviewSection({ f }: { f: any }) {
 }
 
 function CashFlowRow({ label, value, type, bold }: { label: string; value: number; type: "positive" | "negative" | "neutral"; bold?: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center justify-between">
       <span className={cn("text-xs", bold ? "font-bold text-foreground" : "text-muted-foreground")}>{label}</span>
@@ -1048,7 +1070,7 @@ function CashFlowRow({ label, value, type, bold }: { label: string; value: numbe
         "text-sm font-semibold",
         type === "positive" ? "text-emerald-600" : type === "negative" ? "text-red-600" : "text-foreground",
       )}>
-        {type === "negative" ? "−" : type === "positive" && value > 0 ? "+" : ""}{formatIndianCurrency(Math.abs(value))}/mo
+        {type === "negative" ? "−" : type === "positive" && value > 0 ? "+" : ""}{formatIndianCurrency(Math.abs(value))}{t("dashboard.perMonth")}
       </span>
     </div>
   );
@@ -1056,16 +1078,21 @@ function CashFlowRow({ label, value, type, bold }: { label: string; value: numbe
 
 /* ═══ ACTION PLAN ═══ */
 export function ActionPlanSection({ nextSteps, verdict }: { nextSteps: string[]; verdict: string }) {
+  const { t } = useLanguage();
   const actionLabels = [
-    "Validate Demand", "Secure Supply", "Validate Pricing",
-    "Prepare Investment", "Explore Financing", "Prepare Documentation",
+    t("dashboard.actionValidateDemand"),
+    t("dashboard.actionSecureSupply"),
+    t("dashboard.actionValidatePricing"),
+    t("dashboard.actionPrepareInvestment"),
+    t("dashboard.actionExploreFinancing"),
+    t("dashboard.actionPrepareDocs"),
   ];
 
   return (
     <div className="mt-6 rounded-2xl border border-border bg-white p-6 sm:p-8 animate-slide-up">
-      <h3 className="text-lg font-bold text-foreground mb-1 font-serif-display">Your Action Plan</h3>
+      <h3 className="text-lg font-bold text-foreground mb-1 font-serif-display">{t("dashboard.actionTitle")}</h3>
       <p className="text-sm text-muted-foreground mb-5">
-        Complete these steps in order to prepare for your business launch.
+        {t("dashboard.actionSubtitle")}
       </p>
       <div className="space-y-3">
         {nextSteps.slice(0, 6).map((step, i) => (
@@ -1084,7 +1111,7 @@ export function ActionPlanSection({ nextSteps, verdict }: { nextSteps: string[];
             </div>
             <div className="flex-1">
               <p className="text-xs font-bold text-primary uppercase tracking-wider mb-0.5">
-                {actionLabels[i] || `Step ${i + 1}`}
+                {actionLabels[i] || `${t("dashboard.actionStep")} ${i + 1}`}
               </p>
               <p className="text-sm text-foreground group-hover:text-foreground/90">{step}</p>
             </div>

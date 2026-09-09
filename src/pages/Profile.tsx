@@ -1,6 +1,7 @@
 import { useOnboarding } from "@/lib/onboarding-context";
 import { useAuth } from "@/hooks/use-auth";
-import { ModuleHeader, ModuleEmptyState, StatCard } from "@/components/module-ui";
+import { useLanguage } from "@/i18n/LanguageContext";
+import { ModuleHeader, StatCard } from "@/components/module-ui";
 import { formatIndianCurrency } from "@/data/assessment";
 import {
   Settings,
@@ -16,15 +17,8 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 
-const PLACE_LABELS: Record<string, string> = {
-  own: "I already have the place",
-  rent: "I will rent",
-  buy: "I will buy",
-  build: "I will build",
-  unsure: "Not decided yet",
-};
-
 export default function Profile() {
+  const { t } = useLanguage();
   const {
     feasibility: f,
     business,
@@ -61,43 +55,47 @@ export default function Profile() {
   const rows: { icon: React.ReactNode; label: string; value: React.ReactNode }[] = [
     {
       icon: <Store className="h-4 w-4 text-emerald-600" />,
-      label: "Business",
-      value: business ? `${business.icon} ${business.name}${subCategory ? ` · ${subCategory.name}` : ""}` : "Not selected",
+      label: t("profile.lblBusiness"),
+      value: business ? `${business.icon} ${business.name}${subCategory ? ` · ${subCategory.name}` : ""}` : t("profile.notSelected"),
     },
     {
       icon: <MapPin className="h-4 w-4 text-emerald-600" />,
-      label: "Location",
-      value: location ? `${location.name}, ${location.district} (${location.state}) · ${radius} km radius` : "Not selected",
+      label: t("profile.lblLocation"),
+      value: location ? `${location.name}, ${location.district} (${location.state}) · ${radius} ${t("profile.radiusKm")}` : t("profile.notSelected"),
     },
     {
       icon: <IndianRupee className="h-4 w-4 text-emerald-600" />,
-      label: "Your capital",
-      value: `${formatIndianCurrency(capital)}${otherFunding > 0 ? ` + ${formatIndianCurrency(otherFunding)} other funding` : ""}`,
+      label: t("profile.lblCapital"),
+      value: `${formatIndianCurrency(capital)}${otherFunding > 0 ? ` + ${formatIndianCurrency(otherFunding)} ${t("profile.otherFunding")}` : ""}`,
     },
     {
       icon: <IndianRupee className="h-4 w-4 text-emerald-600" />,
-      label: "Target investment",
-      value: targetInvestment > 0 ? formatIndianCurrency(targetInvestment) : "Not entered",
+      label: t("profile.lblTargetInv"),
+      value: targetInvestment > 0 ? formatIndianCurrency(targetInvestment) : t("profile.notEntered"),
     },
     {
       icon: <Store className="h-4 w-4 text-emerald-600" />,
-      label: "Place / infrastructure",
-      value: PLACE_LABELS[placeStatus] ?? "Not decided",
+      label: t("profile.lblPlace"),
+      value: placeStatus === "own" ? t("profile.placeOwn")
+           : placeStatus === "rent" ? t("profile.placeRent")
+           : placeStatus === "buy" ? t("profile.placeBuy")
+           : placeStatus === "build" ? t("profile.placeBuild")
+           : t("profile.placeUnsure"),
     },
     {
       icon: <ShieldCheck className="h-4 w-4 text-emerald-600" />,
-      label: "Starting scale",
-      value: scaleChoice === "recommended" ? "Recommended setup" : scaleChoice === "small" ? "Small start" : "Expanded setup",
+      label: t("profile.lblScale"),
+      value: scaleChoice === "recommended" ? t("profile.recSetup") : scaleChoice === "small" ? t("profile.smallStart") : t("profile.expandedSetup"),
     },
     {
       icon: <ShieldCheck className="h-4 w-4 text-emerald-600" />,
-      label: "Feasibility",
-      value: f ? `${f.overallScore}/100 · ${f.verdictLabel}` : "Not analyzed yet",
+      label: t("profile.lblFeasibility"),
+      value: f ? `${f.overallScore}/100 · ${f.verdictLabel}` : t("profile.notAnalyzed"),
     },
     {
       icon: <ShieldCheck className="h-4 w-4 text-emerald-600" />,
-      label: "Cost edits",
-      value: overrideCount > 0 ? `${overrideCount} cost line${overrideCount > 1 ? "s" : ""} customized` : "Using model estimates",
+      label: t("profile.lblCostEdits"),
+      value: overrideCount > 0 ? `${overrideCount} ${overrideCount > 1 ? t("profile.costLinesCustomized") : t("profile.costLineCustomized")}` : t("profile.modelEstimates"),
     },
   ];
 
@@ -105,19 +103,19 @@ export default function Profile() {
     <div className="space-y-5">
       <ModuleHeader
         icon={<Settings className="h-5 w-5" />}
-        title="Profile & Business Context"
-        badge="one source of truth"
-        subtitle="This is the profile every module reads. Change it here and Dashboard, Analysis, Finance, Market, Schemes, Reports and the AI Advisor all recalculate together."
+        title={t("profile.title")}
+        badge={t("profile.badge")}
+        subtitle={t("profile.subtitle")}
       />
 
       {/* Business profile */}
       <div className="rounded-2xl border border-border bg-white p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-foreground">Your Business Profile</h2>
+            <h2 className="text-sm font-bold text-foreground">{t("profile.businessProfile")}</h2>
             {f && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                <CheckCircle2 className="h-3 w-3" /> analysis active
+                <CheckCircle2 className="h-3 w-3" /> {t("profile.analysisActive")}
               </span>
             )}
           </div>
@@ -125,7 +123,7 @@ export default function Profile() {
             to="/onboarding"
             className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90"
           >
-            <Pencil className="h-3.5 w-3.5" /> Edit Profile
+            <Pencil className="h-3.5 w-3.5" /> {t("profile.editProfile")}
           </Link>
         </div>
 
@@ -141,7 +139,7 @@ export default function Profile() {
 
         {!f && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Run an assessment to fill the profile with live financials.
+            {t("profile.runAssessmentPrompt")}
           </p>
         )}
       </div>
@@ -149,37 +147,37 @@ export default function Profile() {
       {/* Financial snapshot */}
       {f && (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard label="Your Capital" value={formatIndianCurrency(f.financial.availableContribution || capital)} />
-          <StatCard label="Project Cost" value={formatIndianCurrency(f.financial.totalProjectCost)} />
+          <StatCard label={t("profile.lblCapital")} value={formatIndianCurrency(f.financial.availableContribution || capital)} />
+          <StatCard label={t("profile.projectCost")} value={formatIndianCurrency(f.financial.totalProjectCost)} />
           <StatCard
-            label="Funding Gap"
+            label={t("profile.fundingGap")}
             value={f.profitModel ? formatIndianCurrency(f.profitModel.capital.fundingGap) : "—"}
             tone={f.profitModel?.capital.fundingGap ? "warning" : "positive"}
           />
-          <StatCard label="Feasibility" value={`${f.overallScore}/100`} tone={f.overallScore >= 70 ? "positive" : f.overallScore >= 50 ? "warning" : "negative"} />
+          <StatCard label={t("profile.lblFeasibility")} value={`${f.overallScore}/100`} tone={f.overallScore >= 70 ? "positive" : f.overallScore >= 50 ? "warning" : "negative"} />
         </div>
       )}
 
       {/* Account */}
       <div className="rounded-2xl border border-border bg-white p-5">
-        <h2 className="mb-3 text-sm font-bold text-foreground">Account</h2>
+        <h2 className="mb-3 text-sm font-bold text-foreground">{t("profile.account")}</h2>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">{user?.name || "GramUdaan User"}</p>
-            <p className="truncate text-xs text-muted-foreground">{user?.email ?? "Signed in"}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{user?.name || t("profile.defaultUser")}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email ?? t("profile.signedIn")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
               to="/advisor"
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3.5 py-2 text-xs font-bold text-foreground hover:bg-muted"
             >
-              <ExternalLink className="h-3.5 w-3.5" /> Back to modules
+              <ExternalLink className="h-3.5 w-3.5" /> {t("profile.backToModules")}
             </Link>
             <button
               onClick={handleSignOut}
               className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
             >
-              <LogOut className="h-3.5 w-3.5" /> Sign out
+              <LogOut className="h-3.5 w-3.5" /> {t("profile.signOut")}
             </button>
           </div>
         </div>
@@ -188,16 +186,16 @@ export default function Profile() {
       {/* Reset */}
       <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-4 sm:flex-row sm:items-center">
         <div className="flex-1">
-          <p className="text-xs font-bold text-foreground">Start a completely fresh assessment?</p>
+          <p className="text-xs font-bold text-foreground">{t("profile.freshAssessmentTitle")}</p>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Clears the current business profile and analysis from this session. You can always rebuild it in a few minutes.
+            {t("profile.freshAssessmentDesc")}
           </p>
         </div>
         <button
           onClick={handleReset}
           className="inline-flex items-center gap-1.5 self-start rounded-full border border-amber-300 bg-white px-3.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100"
         >
-          <RotateCcw className="h-3.5 w-3.5" /> Start fresh
+          <RotateCcw className="h-3.5 w-3.5" /> {t("profile.startFresh")}
         </button>
       </div>
     </div>

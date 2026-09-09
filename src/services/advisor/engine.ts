@@ -28,11 +28,14 @@ import { buildHyperlocalProfile, type HyperlocalMarketProfile } from "@/services
 
 // ─── Public types ───
 
+import type { CanonicalAnalysisResult } from "@/types/dataIntegration";
+
 export interface AdvisorContext {
   location: Location | null;
   business: BusinessCategory | null;
   capital: number;
   feasibility: FeasibilityData | null;
+  analysisResult?: CanonicalAnalysisResult | null;
   /** Analysis radius (km) chosen for the current analysis. */
   radius?: number;
 }
@@ -427,7 +430,7 @@ function buildMarketAnswer(lang: AdvisorLang, f: FeasibilityData): string {
   const m = f.marketReach;
   return pick(
     lang,
-    `अनुमानित market reach:\n\n• ${FULL(m.households)} परिवार (households)\n• ${FULL(m.population)} लोग\n• करीब ${FULL(m.potentialCustomers)} संभावित ग्राहक\n• ${m.nearbyVillages} आस-पास की बस्तियाँ\n\nमुख्य ग्राहक: ${m.customerGroups.slice(0, 3).join(", ")}।\n\nये आंकड़े available local indicators से अनुमानित हैं (confidence: ${m.confidence})।`,
+    `अनुमानित बाजार पहुंच (जनसंख्या — जनगणना 2011):\n\n• ${FULL(m.households)} परिवार\n• ${FULL(m.population)} कुल जनसंख्या (जनगणना 2011)\n• करीब ${FULL(m.potentialCustomers)} संभावित ग्राहक\n• ${m.nearbyVillages} आस-पास की बस्तियाँ\n\nमुख्य ग्राहक समूह: ${m.customerGroups.slice(0, 3).join(", ")}।\n\nये आंकड़े स्थानीय संकेतकों से अनुमानित हैं (विश्वसनीयता: ${m.confidence === "high" ? "उच्च" : m.confidence === "medium" ? "मध्यम" : "कम"})।`,
     `Estimated market reach:\n\n• ${FULL(m.households)} households\n• ${FULL(m.population)} people\n• Around ${FULL(m.potentialCustomers)} potential customers\n• ${m.nearbyVillages} nearby settlements\n\nMain customers: ${m.customerGroups.slice(0, 3).join(", ")}.\n\nYeh figures available local indicators se estimated hain (confidence: ${m.confidence}).`,
     `Estimated market reach (confidence: ${m.confidence}):\n\n• ${FULL(m.households)} households\n• ${FULL(m.population)} people\n• ~${FULL(m.potentialCustomers)} potential customers\n• ${m.nearbyVillages} nearby settlements\n\nPrimary customer groups: ${m.customerGroups.slice(0, 3).join(", ")}.\n\nThese figures are estimated from available local indicators.`,
   );
@@ -587,6 +590,97 @@ function buildLoanApplicationAnswer(lang: AdvisorLang, ctx: AdvisorContext): { t
   return { text, followups: [] };
 }
 
+/* ── Canonical Real-Data Answers (Mandi, Crop History, Census 2011) ── */
+
+function buildMandiPriceAnswer(lang: AdvisorLang, ctx: AdvisorContext): string {
+  const res = ctx.analysisResult;
+  if (
+    !res ||
+    !res.isAgriBusiness ||
+    !res.mandiData ||
+    res.mandiData.status === "UNAVAILABLE" ||
+    !res.mandiData.records ||
+    res.mandiData.records.length === 0
+  ) {
+    return pick(
+      lang,
+      "विश्वसनीय डेटा उपलब्ध नहीं है। (गैर-कृषि श्रेणी या डेटा अनुपलब्ध)।",
+      "Vishwasniye data uplabdh nahi hai (Agri Mandi price data unavailable or not applicable for non-agri category).",
+      "No verified data available (Agri Mandi price data unavailable or not applicable).",
+    );
+  }
+
+  const recs = res.mandiData.records;
+  const lines = recs.map(
+    (r) =>
+      `• ${r.commodity} (${r.variety}): मॉडल थोक भाव ₹${r.modalPrice.toLocaleString("hi-IN")}/${r.unit === "Rs/Quintal" ? "कुंतल" : r.unit} [भाव दायरा: ₹${r.minPrice} - ₹${r.maxPrice}] — मंडी: ${r.market}, ${r.district} (${r.date})`,
+  );
+
+  return pick(
+    lang,
+    `एगमार्कनेट (data.gov.in) सत्यापित थोक मंडी भाव:\n\n${lines.join("\n")}\n\nस्रोतः एगमार्कनेट, कृषि एवं किसान कल्याण मंत्रालय (${res.mandiData.lastUpdated ?? "सत्यापित थोक दर"})।`,
+    `AGMARKNET (data.gov.in) verified mandi rates:\n\n${lines.join("\n")}\n\nSource: AGMARKNET / data.gov.in.`,
+    `AGMARKNET (data.gov.in) verified Mandi prices:\n\n${lines.join("\n")}\n\nSource: AGMARKNET / data.gov.in.`,
+  );
+}
+
+function buildHistoricalPriceAnswer(lang: AdvisorLang, ctx: AdvisorContext): string {
+  const res = ctx.analysisResult;
+  if (
+    !res ||
+    !res.historicalPrices ||
+    res.historicalPrices.status === "UNAVAILABLE" ||
+    !res.historicalPrices.records ||
+    res.historicalPrices.records.length === 0
+  ) {
+    return pick(
+      lang,
+      "विश्वसनीय डेटा उपलब्ध नहीं है।",
+      "Vishwasniye data uplabdh nahi hai (Historical crop price data unavailable).",
+      "No verified data available (Historical crop price data unavailable).",
+    );
+  }
+
+  const recs = res.historicalPrices.records;
+  const lines = recs.map((r) => `• वर्ष ${r.year}: ${r.commodity} (${r.variety}) — ₹${r.price.toLocaleString("hi-IN")}/${r.unit === "Rs/Quintal" ? "कुंतल" : r.unit}`);
+
+  return pick(
+    lang,
+    `ऐतिहासिक फसल मूल्य दरें:\n\n${lines.join("\n")}\n\nस्रोतः एगमार्कनेट ऐतिहासिक डेटाबेस।`,
+    `Historical crop prices:\n\n${lines.join("\n")}\n\nSource: AGMARKNET historical database.`,
+    `Historical crop prices:\n\n${lines.join("\n")}\n\nSource: AGMARKNET historical database.`,
+  );
+}
+
+function buildCensusPopulationAnswer(lang: AdvisorLang, ctx: AdvisorContext): string {
+  const res = ctx.analysisResult;
+  if (res && res.population && res.population.status === "VERIFIED_EXTERNAL" && res.population.value > 0) {
+    return pick(
+      lang,
+      `जनसंख्या — जनगणना 2011: ${res.population.value.toLocaleString("hi-IN")} निवासी (${res.location.name}, ${res.location.district})\nस्रोतः भारत की जनगणना 2011 (आधिकारिक रिकॉर्ड)।`,
+      `Population — Census 2011: ${res.population.value.toLocaleString("en-IN")} people (${res.location.name}, ${res.location.district})\nSource: Census of India 2011.`,
+      `Population — Census 2011: ${res.population.value.toLocaleString("en-IN")} people (${res.location.name}, ${res.location.district})\nSource: Census of India 2011.`,
+    );
+  }
+
+  if (ctx.feasibility?.marketReach?.population) {
+    const pop = ctx.feasibility.marketReach.population;
+    return pick(
+      lang,
+      `जनसंख्या — जनगणना 2011: ${pop.toLocaleString("hi-IN")} निवासी (स्थानीय जनगणना एंकर)\nस्रोतः भारत की जनगणना 2011।`,
+      `Population — Census 2011: ${pop.toLocaleString("en-IN")} people (Anchor)\nSource: Census of India 2011 (Local Anchor Data).`,
+      `Population — Census 2011: ${pop.toLocaleString("en-IN")} people (Anchor)\nSource: Census of India 2011 (Local Anchor Data).`,
+    );
+  }
+
+  return pick(
+    lang,
+    "विश्वसनीय डेटा उपलब्ध नहीं है।",
+    "Vishwasniye data uplabdh nahi hai.",
+    "No verified data available.",
+  );
+}
+
 function buildSchemeAnswer(
   lang: AdvisorLang,
   f: FeasibilityData,
@@ -643,9 +737,9 @@ function buildSchemeAnswer(
 
   const caveat = pick(
     lang,
-    "MUDRA, PMEGP जैसी योजनाओं की interest rate, subsidy और ceilings समय-समय पर बदलती हैं — official portal या बैंक/DIC से verify करें।",
-    "MUDRA, PMEGP jaise yojanaon ki interest rate, subsidy aur ceilings samay-samay par badalti hain — official portal ya bank/DIC se verify karein.",
-    "Interest rates, subsidy percentages and ceilings for schemes like MUDRA and PMEGP change periodically — verify with the official portal, a bank or the DIC.",
+    "MUDRA, PMEGP जैसी योजनाओं की interest rate, subsidy और ceilings समय-समय पर बदलती हैं। सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है।",
+    "MUDRA, PMEGP jaise yojanaon ki interest rate, subsidy aur ceilings samay-samay par badalti hain. Sarkari niyamo aur bank swikriti ke adheen. Koi swachalit guarantee nahi hai.",
+    "Interest rates, subsidy percentages and ceilings for schemes change periodically. Subject to government rules and bank approval. Preliminary match only — final approval rests with bank/implementing authority.",
   );
 
   return [limitBlock, structure, matched, caveat].filter(Boolean).join("\n");
@@ -969,6 +1063,21 @@ function computeReply(req: AdvisorRequest): AdvisorReply {
       text: pick(lang, "Recommendation के लिए capital बताइए — आप कितना invest कर सकते हैं?", "Recommendation ke liye capital bataiye — aap kitna invest kar sakte hain?", "For a recommendation, tell me how much you can invest."),
       followups: [],
     };
+  }
+
+  // Mandi / Crop Price intent
+  if (/(mandi|mandi rate|mandi price|mandi dam|crop rate|crop price|bhav|dhaan|gehu|chawal|मंडी|भाव|दाम)/.test(hint)) {
+    return { text: buildMandiPriceAnswer(lang, context), followups: [], suggestPage: "/dashboard" };
+  }
+
+  // Historical Crop Price intent
+  if (/(historical price|price history|purana bhav|history|इतिहास|पुराना भाव)/.test(hint)) {
+    return { text: buildHistoricalPriceAnswer(lang, context), followups: [], suggestPage: "/dashboard" };
+  }
+
+  // Population / Census 2011 intent
+  if (/(population|census|aabadi|abadi|जनसंख्या|कितने लोग|kitne log)/.test(hint)) {
+    return { text: buildCensusPopulationAnswer(lang, context), followups: [], suggestPage: "/dashboard" };
   }
 
   // Scheme

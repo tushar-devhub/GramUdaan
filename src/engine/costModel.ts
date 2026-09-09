@@ -55,6 +55,7 @@ export interface CostContext {
   placeStatus?: PlaceStatus;
   rentMonthly?: number;
   scaleChoice?: ScaleChoice;
+  businessAnswers?: Record<string, string>;
   /** User-edited component amounts (₹), keyed by component id. Override the estimate. */
   overrides?: Partial<Record<string, number>>;
   /** Internal: drop optional components (used for the minimum-start tier). */

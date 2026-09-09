@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { generateFeasibility } from "@/data/feasibility";
 import { formatIndianCurrency, getVerdictColor, getVerdictIcon } from "@/data/assessment";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
@@ -28,6 +29,7 @@ const QUICK_AMOUNTS = [
 ];
 
 export default function WhatIf() {
+  const { t } = useLanguage();
   const { feasibility: currentFeasibility, location: currentLocation, business: currentBusiness, capital: currentCapital, radius: currentRadius } = useOnboarding();
 
   const [newCapital, setNewCapital] = useState(currentCapital);
@@ -72,9 +74,9 @@ export default function WhatIf() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">What-If Simulator</h1>
+              <h1 className="text-2xl font-bold text-foreground">{t("whatif.title")}</h1>
               <p className="text-sm text-muted-foreground">
-                Change your inputs and see how the analysis changes
+                {t("whatif.subtitle")}
               </p>
             </div>
           </div>
@@ -84,12 +86,12 @@ export default function WhatIf() {
           {/* Controls */}
           <div className="lg:col-span-1 space-y-5">
             <div className="rounded-2xl border border-border bg-white p-5">
-              <h3 className="text-sm font-bold text-foreground mb-4">Modify Inputs</h3>
+              <h3 className="text-sm font-bold text-foreground mb-4">{t("whatif.modifyInputs")}</h3>
 
               {/* Capital */}
               <div className="mb-4">
                 <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
-                  Capital Contribution
+                  {t("whatif.capitalContribution")}
                 </label>
                 <CurrencyInput value={newCapital} onChange={setNewCapital} />
                 <div className="flex gap-1.5 mt-2">
@@ -113,7 +115,7 @@ export default function WhatIf() {
               {/* Business */}
               <div className="mb-4">
                 <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
-                  Business Type
+                  {t("whatif.businessType")}
                 </label>
                 <select
                   value={newBusinessId}
@@ -131,7 +133,7 @@ export default function WhatIf() {
               {/* Location */}
               <div className="mb-5">
                 <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
-                  Location
+                  {t("whatif.location")}
                 </label>
                 <select
                   value={newLocationId}
@@ -161,11 +163,11 @@ export default function WhatIf() {
                   {isComparing ? (
                     <>
                       <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Comparing...
+                      {t("whatif.comparing")}
                     </>
                   ) : (
                     <>
-                      Compare
+                      {t("whatif.compareBtn")}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -183,23 +185,23 @@ export default function WhatIf() {
             {currentFeasibility && (
               <div className="rounded-2xl border border-border bg-white p-5">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                  Current Assessment
+                  {t("whatif.currentAssessment")}
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Business</span>
+                    <span className="text-muted-foreground">{t("whatif.lblBusiness")}</span>
                     <span className="font-semibold text-foreground">{currentBusiness?.name || "N/A"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Location</span>
+                    <span className="text-muted-foreground">{t("whatif.lblLocation")}</span>
                     <span className="font-semibold text-foreground">{currentLocation?.name || "N/A"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Capital</span>
+                    <span className="text-muted-foreground">{t("whatif.lblCapital")}</span>
                     <span className="font-semibold text-foreground">{formatIndianCurrency(currentCapital)}</span>
                   </div>
                   <div className="flex justify-between pt-2 border-t border-border">
-                    <span className="text-muted-foreground">Score</span>
+                    <span className="text-muted-foreground">{t("whatif.lblScore")}</span>
                     <span className="font-bold text-foreground">{currentFeasibility.overallScore}/100</span>
                   </div>
                 </div>
@@ -213,20 +215,20 @@ export default function WhatIf() {
               <div className="rounded-2xl border border-border bg-white p-8 text-center min-h-[400px] flex flex-col items-center justify-center">
                 <Sparkles className="h-10 w-10 text-primary/30 mb-3" />
                 <h3 className="text-lg font-bold text-foreground mb-1">
-                  Modify inputs and click Compare
+                  {t("whatif.emptyTitle")}
                 </h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
-                  Change the capital, business type or location to see how your feasibility analysis would change.
+                  {t("whatif.emptyDesc")}
                 </p>
               </div>
             ) : (
               <div className="space-y-5">
                 {/* Score Comparison */}
                 <div className="rounded-2xl border border-border bg-white p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-4">Overall Score</h3>
+                  <h3 className="text-sm font-bold text-foreground mb-4">{t("whatif.overallScore")}</h3>
                   <div className="flex items-center gap-4">
                     <div className="flex-1 text-center">
-                      <p className="text-xs text-muted-foreground mb-1">{currentBusiness?.name || "Current"}</p>
+                      <p className="text-xs text-muted-foreground mb-1">{currentBusiness?.name || t("whatif.current")}</p>
                       <p className="text-3xl font-bold text-foreground">{currentFeasibility?.overallScore || 0}</p>
                       <div className={cn("mt-1 inline-flex items-center gap-1 text-xs font-semibold", getVerdictColor(currentFeasibility?.verdict || "caution"))}>
                         {getVerdictIcon(currentFeasibility?.verdict || "caution")} {currentFeasibility?.verdictLabel || "N/A"}
@@ -245,10 +247,15 @@ export default function WhatIf() {
 
                 {/* Sub-score Comparison */}
                 <div className="rounded-2xl border border-border bg-white p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-4">Score Breakdown</h3>
+                  <h3 className="text-sm font-bold text-foreground mb-4">{t("whatif.scoreBreakdown")}</h3>
                   <div className="space-y-3">
-                    {(["marketScore", "opportunityScore", "competitionScore", "riskScore", "financialFitScore"] as const).map((key) => {
-                      const label = key.replace("Score", "").replace(/([A-Z])/g, " $1").trim();
+                    {([
+                      { key: "marketScore", label: t("compare.marketScore") },
+                      { key: "opportunityScore", label: t("compare.opportunityScore") },
+                      { key: "competitionScore", label: t("compare.competitionScore") },
+                      { key: "riskScore", label: t("compare.riskScore") },
+                      { key: "financialFitScore", label: t("compare.financialFit") },
+                    ] as const).map(({ key, label }) => {
                       const current = currentFeasibility?.subScores?.[key] || 0;
                       const newVal = newFeasibility.subScores[key];
                       const delta = getScoreDelta(current, newVal);
@@ -275,38 +282,38 @@ export default function WhatIf() {
 
                 {/* Financial Comparison */}
                 <div className="rounded-2xl border border-border bg-white p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-4">Financial Structure</h3>
+                  <h3 className="text-sm font-bold text-foreground mb-4">{t("whatif.financialStructure")}</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-xl bg-muted/50 p-4">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Current</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">{t("whatif.current")}</p>
                       <div className="space-y-1.5 text-xs">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Project Cost</span>
+                          <span className="text-muted-foreground">{t("whatif.projectCost")}</span>
                           <span className="font-semibold">{formatIndianCurrency(currentFeasibility?.financial.totalProjectCost || 0)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Loan</span>
+                          <span className="text-muted-foreground">{t("whatif.loan")}</span>
                           <span className="font-semibold">{formatIndianCurrency(currentFeasibility?.financial.potentialLoan || 0)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Scheme</span>
+                          <span className="text-muted-foreground">{t("whatif.scheme")}</span>
                           <span className="font-semibold">{currentFeasibility?.financial.recommendedScheme || "N/A"}</span>
                         </div>
                       </div>
                     </div>
                     <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
-                      <p className="text-[10px] font-semibold text-primary uppercase mb-2">New Scenario</p>
+                      <p className="text-[10px] font-semibold text-primary uppercase mb-2">{t("whatif.newScenario")}</p>
                       <div className="space-y-1.5 text-xs">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Project Cost</span>
+                          <span className="text-muted-foreground">{t("whatif.projectCost")}</span>
                           <span className="font-semibold">{formatIndianCurrency(newFeasibility.financial.totalProjectCost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Loan</span>
+                          <span className="text-muted-foreground">{t("whatif.loan")}</span>
                           <span className="font-semibold">{formatIndianCurrency(newFeasibility.financial.potentialLoan)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Scheme</span>
+                          <span className="text-muted-foreground">{t("whatif.scheme")}</span>
                           <span className="font-semibold">{newFeasibility.financial.recommendedScheme}</span>
                         </div>
                       </div>
@@ -316,7 +323,7 @@ export default function WhatIf() {
 
                 {/* Decision Comparison */}
                 <div className="rounded-2xl border border-border bg-white p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-4">Decision</h3>
+                  <h3 className="text-sm font-bold text-foreground mb-4">{t("whatif.decision")}</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className={cn(
                       "rounded-xl p-4 border",
@@ -347,7 +354,7 @@ export default function WhatIf() {
                     to="/dashboard"
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                   >
-                    View Full Dashboard
+                    {t("whatif.viewDashboard")}
                     <ArrowUpRight className="h-4 w-4" />
                   </Link>
                 </div>

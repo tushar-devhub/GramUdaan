@@ -1,16 +1,32 @@
 import { Link, useLocation } from "react-router";
 import { useState } from "react";
-import { Menu, X, Globe } from "lucide-react";
+import { Menu, X, Globe, Languages } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface NavbarProps {
   className?: string;
   variant?: "landing" | "app";
 }
 
+function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <button
+      onClick={() => setLanguage(language === "hi" ? "en" : "hi")}
+      title="Switch Language / भाषा बदलें"
+      className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100 shadow-sm"
+    >
+      <Languages className="h-3.5 w-3.5" />
+      <span>{language === "hi" ? "English" : "हिंदी"}</span>
+    </button>
+  );
+}
+
 export function Navbar({ className, variant = "landing" }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { t } = useLanguage();
   const isLanding = variant === "landing" || location.pathname === "/";
 
   return (
@@ -33,57 +49,61 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-2">
           {isLanding ? (
             <>
               <a href="#how-it-works" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                How It Works
+                {t("nav.howItWorks")}
               </a>
               <a href="#features" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Features
+                {t("nav.features")}
               </a>
               <a href="#trust" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Trust
+                {t("nav.trust")}
               </a>
             </>
           ) : (
             <>
               <Link to="/dashboard" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
+                {t("nav.home")}
               </Link>
               <Link to="/advisor" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                AI Advisor
+                {t("nav.advisor")}
               </Link>
               <Link to="/what-if" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                What-If
+                {t("nav.whatIf")}
               </Link>
               <Link to="/compare" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Compare
+                {t("nav.compare")}
               </Link>
               <Link to="/report" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Report
+                {t("nav.report")}
               </Link>
             </>
           )}
+          <LanguageToggle />
           <Link
             to="/onboarding"
             className="ml-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            Analyze My Business
+            {t("nav.analyzeMyBusiness")}
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
               →
             </span>
           </Link>
         </div>
 
-        {/* Mobile menu button */}
-        <button
-          className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        {/* Mobile menu button and language */}
+        <div className="flex items-center gap-2 md:hidden">
+          <LanguageToggle />
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
@@ -92,31 +112,31 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
           {isLanding ? (
             <div className="flex flex-col gap-1 py-2">
               <a href="#how-it-works" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                How It Works
+                {t("nav.howItWorks")}
               </a>
               <a href="#features" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                Features
+                {t("nav.features")}
               </a>
               <a href="#trust" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                Trust
+                {t("nav.trust")}
               </a>
             </div>
           ) : (
             <div className="flex flex-col gap-1 py-2">
               <Link to="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                Dashboard
+                {t("nav.home")}
               </Link>
               <Link to="/advisor" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                AI Advisor
+                {t("nav.advisor")}
               </Link>
               <Link to="/what-if" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                What-If Simulator
+                {t("nav.whatIf")}
               </Link>
               <Link to="/compare" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                Compare Businesses
+                {t("nav.compare")}
               </Link>
               <Link to="/report" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
-                Business Report
+                {t("nav.report")}
               </Link>
             </div>
           )}
@@ -125,7 +145,7 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
             className="mt-2 flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground"
             onClick={() => setMobileOpen(false)}
           >
-            Analyze My Business →
+            {t("nav.analyzeMyBusiness")} →
           </Link>
         </div>
       )}

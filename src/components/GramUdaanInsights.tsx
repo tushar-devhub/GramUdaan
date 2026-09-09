@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { FeasibilityData } from "@/data/feasibility-types";
 import { formatIndianCurrency } from "@/data/assessment";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
@@ -38,6 +39,7 @@ export default function GramUdaanInsights({ f }: { f: FeasibilityData }) {
 /* ═══ 1. TRANSPARENT COST BREAKDOWN ═══ */
 
 function CostBreakdownSection({ f }: { f: FeasibilityData }) {
+  const { language, t } = useLanguage();
   const breakdown = f.costBreakdown;
   if (!breakdown) return null;
 
@@ -48,19 +50,19 @@ function CostBreakdownSection({ f }: { f: FeasibilityData }) {
           <Layers className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-foreground">Transparent Cost Breakdown</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("insights.costTitle")}</h3>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">≈ estimates</span>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">{t("insights.estimatesBadge")}</span>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-[#F4F8EF] p-4 mb-4 flex flex-wrap items-center gap-x-8 gap-y-2">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Estimated initial requirement</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.initialReq")}</p>
           <p className="text-2xl font-bold text-primary font-serif-display">{formatIndianCurrency(breakdown.total)}</p>
         </div>
         {breakdown.monthlyRentEstimate > 0 && (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">If renting · monthly</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.ifRenting")}</p>
             <p className="text-lg font-bold text-foreground">{formatIndianCurrency(breakdown.monthlyRentEstimate)}</p>
           </div>
         )}
@@ -69,18 +71,20 @@ function CostBreakdownSection({ f }: { f: FeasibilityData }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
         {breakdown.components.filter((c) => c.amount > 0).map((c) => {
           const badge = SOURCE_BADGE[c.source] || SOURCE_BADGE.ESTIMATED;
+          const badgeText = language === "hi"
+            ? (c.source === "CALCULATED" ? "गणना की गई" : c.source === "USER_PROVIDED" ? "आपका इनपुट" : "अनुमानित")
+            : badge.label;
           const pct = breakdown.total > 0 ? Math.round((c.amount / breakdown.total) * 100) : 0;
           return (
             <div key={c.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-white px-3.5 py-2.5">
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{c.label}</p>
-                <p className="text-[10px] text-muted-foreground">{c.labelHi}</p>
+                <p className="text-xs font-semibold text-foreground truncate">{language === "hi" ? (c.labelHi || c.label) : c.label}</p>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <p className="text-sm font-bold text-foreground">{formatIndianCurrency(c.amount)}</p>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] text-muted-foreground">{pct}%</span>
-                  <span className={cn("rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide", badge.cls)}>{badge.label}</span>
+                  <span className={cn("rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide", badge.cls)}>{badgeText}</span>
                 </div>
               </div>
             </div>
@@ -98,10 +102,9 @@ function CostBreakdownSection({ f }: { f: FeasibilityData }) {
       </div>
 
       <details className="rounded-lg border border-border/60 bg-white/70 px-3 py-2 text-xs">
-        <summary className="cursor-pointer select-none font-semibold text-primary">How was this estimated?</summary>
+        <summary className="cursor-pointer select-none font-semibold text-primary">{t("insights.howEstimated")}</summary>
         <p className="mt-2 text-muted-foreground leading-relaxed">
-          Component shares are based on typical rural micro-enterprise setups for this business type, your place arrangement (own/rent/buy/build), and the selected scale.
-          These are preliminary estimates for decision support — actual costs depend on local prices, quality of equipment and the scale you finally choose.
+          {t("insights.howEstimatedDesc")}
         </p>
       </details>
     </div>
@@ -111,6 +114,7 @@ function CostBreakdownSection({ f }: { f: FeasibilityData }) {
 /* ═══ 2. CAPITAL UTILIZATION + SCALE ═══ */
 
 function CapitalScaleSection({ f }: { f: FeasibilityData }) {
+  const { language, t } = useLanguage();
   const pm = f.profitModel!;
   const cap = pm.capital;
 
@@ -121,25 +125,25 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
           <ScaleIcon className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-foreground">Capital Utilization & Business Scale</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("insights.capitalScaleTitle")}</h3>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">≈ estimates</span>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">{t("insights.estimatesBadge")}</span>
       </div>
 
       {/* Capital vs requirement */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="rounded-xl bg-muted/50 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Your available capital</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.availCapital")}</p>
           <p className="text-lg font-bold text-foreground mt-1">{formatIndianCurrency(cap.availableCapital)}</p>
         </div>
         <div className={cn("rounded-xl p-4 text-center border", cap.fundingGap > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200")}>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Funding gap</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.fundingGap")}</p>
           <p className={cn("text-lg font-bold mt-1", cap.fundingGap > 0 ? "text-amber-700" : "text-emerald-700")}>
-            {cap.fundingGap > 0 ? formatIndianCurrency(cap.fundingGap) : "₹0 — covered"}
+            {cap.fundingGap > 0 ? formatIndianCurrency(cap.fundingGap) : t("insights.covered")}
           </p>
         </div>
         <div className={cn("rounded-xl p-4 text-center border", cap.remainingCapital > 0 ? "bg-emerald-50 border-emerald-200" : "bg-muted/50")}>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Remaining capital</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.remCapital")}</p>
           <p className={cn("text-lg font-bold mt-1", cap.remainingCapital > 0 ? "text-emerald-700" : "text-muted-foreground")}>
             {formatIndianCurrency(cap.remainingCapital)}
           </p>
@@ -151,7 +155,7 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
         <div className="rounded-xl border border-primary/10 bg-primary/[0.03] p-3.5 mb-4">
           <p className="text-xs font-bold text-primary mb-2 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" />
-            {cap.remainingCapital > 0 ? "Possible use of your remaining capital" : "How to handle the requirement"}
+            {cap.remainingCapital > 0 ? t("insights.remCapitalUse") : t("insights.handleReq")}
           </p>
           <ul className="space-y-1">
             {cap.allocationSuggestions.map((s, i) => (
@@ -168,25 +172,26 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
         <table className="w-full text-xs min-w-[560px]">
           <thead>
             <tr className="border-b border-border text-left">
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Scale</th>
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Investment</th>
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Monthly revenue</th>
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Monthly profit</th>
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Margin</th>
-              <th className="py-2 pr-3 font-semibold text-muted-foreground">Break-even</th>
-              <th className="py-2 font-semibold text-muted-foreground">Risk</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thScale")}</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thInvestment")}</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thMonthlyRev")}</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thMonthlyProf")}</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thMargin")}</th>
+              <th className="py-2 pr-3 font-semibold text-muted-foreground">{t("insights.thBreakEven")}</th>
+              <th className="py-2 font-semibold text-muted-foreground">{t("insights.thRisk")}</th>
             </tr>
           </thead>
           <tbody>
             {pm.scales.map((s) => {
               const risk = RISK_STYLE[s.risk];
+              const riskLabel = s.risk === "low" ? t("insights.lowerRisk") : s.risk === "high" ? t("insights.higherRisk") : t("insights.modRisk");
               const isRecommended = s.id === "recommended";
               return (
                 <tr key={s.id} className={cn("border-b border-border/50", isRecommended && "bg-primary/[0.03]")}>
                   <td className="py-2.5 pr-3">
                     <div className="flex items-center gap-1.5">
-                      <span className={cn("font-bold", isRecommended ? "text-primary" : "text-foreground")}>{s.label}</span>
-                      {isRecommended && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">recommended</span>}
+                      <span className={cn("font-bold", isRecommended ? "text-primary" : "text-foreground")}>{language === "hi" ? (s.labelHi || s.label) : s.label}</span>
+                      {isRecommended && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">{t("insights.recommended")}</span>}
                     </div>
                     <p className="text-[10px] text-muted-foreground">{s.note}</p>
                   </td>
@@ -194,10 +199,10 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
                   <td className="py-2.5 pr-3">{formatIndianCurrency(s.revenue)}</td>
                   <td className={cn("py-2.5 pr-3 font-semibold", s.profit >= 0 ? "text-emerald-600" : "text-red-600")}>{formatIndianCurrency(s.profit)}</td>
                   <td className="py-2.5 pr-3">{s.margin}%</td>
-                  <td className="py-2.5 pr-3">{s.breakEvenMonth ? `Month ${s.breakEvenMonth}` : "9+ months"}</td>
+                  <td className="py-2.5 pr-3">{s.breakEvenMonth ? t("insights.monthX").replace("{month}", String(s.breakEvenMonth)) : t("insights.ninePlusMonths")}</td>
                   <td className="py-2.5">
                     <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold", risk.cls)}>
-                      <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} /> {risk.label}
+                      <span className={cn("h-1.5 w-1.5 rounded-full", risk.dot)} /> {riskLabel}
                     </span>
                   </td>
                 </tr>
@@ -206,7 +211,7 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-2">Investment is the estimated setup requirement at each scale. All figures are estimates for decision support.</p>
+      <p className="text-[10px] text-muted-foreground mt-2">{t("insights.scaleFootnote")}</p>
     </div>
   );
 }
@@ -214,11 +219,17 @@ function CapitalScaleSection({ f }: { f: FeasibilityData }) {
 /* ═══ 3. PROFIT TIMELINE + BREAK-EVEN ═══ */
 
 function ProfitTimelineSection({ f }: { f: FeasibilityData }) {
+  const { t, language } = useLanguage();
   const pm = f.profitModel!;
 
   const chartData = useMemo(
-    () => pm.timeline.map((p) => ({ month: p.label, revenue: p.revenue, expenses: p.expenses, profit: p.profit })),
-    [pm],
+    () => pm.timeline.map((p) => ({
+      month: language === "hi" ? p.label.replace("M", "माह ") : p.label,
+      revenue: p.revenue,
+      expenses: p.expenses,
+      profit: p.profit,
+    })),
+    [pm, language],
   );
 
   return (
@@ -228,33 +239,33 @@ function ProfitTimelineSection({ f }: { f: FeasibilityData }) {
           <TrendingUp className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-foreground">Profit Timeline & Break-even</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("insights.timelineTitle")}</h3>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">≈ estimates</span>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-semibold text-amber-600">{t("insights.estimatesBadge")}</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="rounded-xl bg-muted/50 p-3.5 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Est. monthly revenue</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.estMonthlyRev")}</p>
           <p className="text-base font-bold text-foreground mt-1">{formatIndianCurrency(pm.monthlyRevenue)}</p>
         </div>
         <div className="rounded-xl bg-muted/50 p-3.5 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Est. monthly expenses</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.estMonthlyExp")}</p>
           <p className="text-base font-bold text-foreground mt-1">{formatIndianCurrency(pm.monthlyExpenses)}</p>
         </div>
         <div className={cn("rounded-xl p-3.5 text-center border", pm.monthlyProfit >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Est. monthly profit</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("insights.estMonthlyProf")}</p>
           <p className={cn("text-base font-bold mt-1", pm.monthlyProfit >= 0 ? "text-emerald-700" : "text-red-600")}>{formatIndianCurrency(pm.monthlyProfit)}</p>
         </div>
         <div className="rounded-xl bg-primary/5 border border-primary/10 p-3.5 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">Operating break-even</p>
-          <p className="text-base font-bold text-primary mt-1">{pm.breakEvenMonth ? `~Month ${pm.breakEvenMonth}` : "9+ months"}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">{t("insights.operatingBreakEven")}</p>
+          <p className="text-base font-bold text-primary mt-1">{pm.breakEvenMonth ? t("insights.approxMonthX").replace("{month}", String(pm.breakEvenMonth)) : t("insights.ninePlusMonths")}</p>
         </div>
       </div>
 
       {/* 12-month chart */}
       <div className="mb-3">
-        <ChartContainer config={{ revenue: { label: "Revenue", color: "#10b981" }, expenses: { label: "Expenses", color: "#f59e0b" }, profit: { label: "Profit/Loss", color: "#6366f1" } }} className="h-64">
+        <ChartContainer config={{ revenue: { label: t("insights.chartRevenue"), color: "#10b981" }, expenses: { label: t("insights.chartExpenses"), color: "#f59e0b" }, profit: { label: t("insights.chartProfitLoss"), color: "#6366f1" } }} className="h-64">
           <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={10} />
@@ -271,18 +282,18 @@ function ProfitTimelineSection({ f }: { f: FeasibilityData }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
           <p className="text-xs font-bold text-foreground mb-1 flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5 text-primary" /> Break-even explained
+            <Target className="h-3.5 w-3.5 text-primary" /> {t("insights.breakEvenExplained")}
           </p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             {pm.breakEvenMonth
-              ? `Under current assumptions the business is estimated to cover its operating costs around month ${pm.breakEvenMonth} (break-even sales ≈ ${formatIndianCurrency(pm.breakEvenSales)}/month). Months before that may show a loss as customers build up.`
-              : "Under current assumptions operating break-even is not reached within 12 months — revisit the scale, pricing or costs."}
+              ? t("insights.breakEvenSuccess").replace("{month}", String(pm.breakEvenMonth)).replace("{sales}", formatIndianCurrency(pm.breakEvenSales))
+              : t("insights.breakEvenNotReached")}
           </p>
         </div>
         <div className="rounded-xl border border-border/60 p-3.5">
           <div className="flex items-center gap-2 mb-1.5">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <p className="text-xs font-bold text-foreground">Profit-based risk — {pm.risk.label}</p>
+            <p className="text-xs font-bold text-foreground">{t("insights.profitRisk").replace("{label}", pm.risk.label)}</p>
             <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[10px] font-bold", RISK_STYLE[pm.risk.level].cls)}>{pm.risk.level.toUpperCase()}</span>
           </div>
           <ul className="space-y-1">
@@ -301,7 +312,7 @@ function ProfitTimelineSection({ f }: { f: FeasibilityData }) {
       </div>
 
       <details className="rounded-lg border border-border/60 bg-white/70 px-3 py-2 text-xs">
-        <summary className="cursor-pointer select-none font-semibold text-primary">Assumptions behind these numbers</summary>
+        <summary className="cursor-pointer select-none font-semibold text-primary">{t("insights.assumptions")}</summary>
         <ul className="mt-2 space-y-1 text-muted-foreground">
           {pm.assumptions.map((a, i) => <li key={i}>• {a}</li>)}
         </ul>

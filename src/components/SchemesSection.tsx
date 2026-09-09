@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { formatIndianCurrency } from "@/data/assessment";
 import { SCHEME_FILTERS } from "@/data/schemes";
 import {
   matchSchemesForProfileSource,
-  formatSchemeRupees,
   type SchemeMatch,
   type SchemeMatchResult,
 } from "@/engine/schemeMatching";
@@ -38,11 +38,18 @@ const LEVEL_META: Record<SchemeMatch["level"], { label: string; chip: string; do
 };
 
 function LevelChip({ level }: { level: SchemeMatch["level"] }) {
+  const { t } = useLanguage();
   const meta = LEVEL_META[level];
+  const label =
+    level === "high"
+      ? t("schemesSec.highMatch")
+      : level === "possible"
+        ? t("schemesSec.possibleMatch")
+        : t("schemesSec.lowMatch");
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wide", meta.chip)}>
       <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
-      {meta.label}
+      {label}
     </span>
   );
 }
@@ -50,14 +57,21 @@ function LevelChip({ level }: { level: SchemeMatch["level"] }) {
 /* ─── Match card ─── */
 
 function MatchCard({ m, highlighted, onOpen }: { m: SchemeMatch; highlighted?: boolean; onOpen: (id: string) => void }) {
+  const { t } = useLanguage();
   const reasons = m.reasons.slice(0, 2);
   const open = () => onOpen(m.scheme.id);
+  const levelLabel =
+    m.level === "high"
+      ? t("schemesSec.highMatch")
+      : m.level === "possible"
+        ? t("schemesSec.possibleMatch")
+        : t("schemesSec.lowMatch");
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${m.scheme.name} — ${LEVEL_META[m.level].label}. Open scheme details`}
-      title="Open scheme details"
+      aria-label={t("schemesSec.openDetailsAria").replace("{name}", m.scheme.name).replace("{level}", levelLabel)}
+      title={t("schemesSec.openDetails")}
       onClick={open}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -85,11 +99,11 @@ function MatchCard({ m, highlighted, onOpen }: { m: SchemeMatch; highlighted?: b
       <div className="flex items-center gap-2 flex-wrap">
         <LevelChip level={m.level} />
         <span className="text-[10px] font-medium text-muted-foreground">
-          {m.percent}% of evaluated criteria
+          {t("schemesSec.evaluatedCriteria").replace("{percent}", String(m.percent))}
         </span>
         <span className="flex-1" />
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary group-hover:gap-1.5 transition-all">
-          View details <ArrowRight className="h-3 w-3" />
+          {t("schemesSec.viewDetails")} <ArrowRight className="h-3 w-3" />
         </span>
       </div>
 
@@ -125,7 +139,7 @@ function MatchCard({ m, highlighted, onOpen }: { m: SchemeMatch; highlighted?: b
 
       {m.level === "low" && m.exclusions.length > 0 && (
         <p className="text-[11px] text-muted-foreground leading-snug">
-          <span className="font-semibold text-foreground/70">Why not ranked higher: </span>
+          <span className="font-semibold text-foreground/70">{t("schemesSec.whyNotRanked")}</span>
           {m.exclusions[0].text}
         </p>
       )}
@@ -136,6 +150,7 @@ function MatchCard({ m, highlighted, onOpen }: { m: SchemeMatch; highlighted?: b
 /* ─── Official source link (robust open + copy fallback) ─── */
 
 function OfficialSourceLink({ url }: { url: string }) {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<"idle" | "copied" | "blocked">("idle");
 
   const copyRaw = () => {
@@ -172,30 +187,32 @@ function OfficialSourceLink({ url }: { url: string }) {
         <button
           type="button"
           onClick={handleOpen}
+          title={t("schemesSec.openOfficialTooltip")}
           className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <ExternalLink className="h-3 w-3" />
-          Open official page
+          {t("schemesSec.openOfficial")}
         </button>
         <button
           type="button"
           onClick={handleCopy}
+          title={t("schemesSec.copyLinkTooltip")}
           className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors"
         >
           {status === "copied" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-          {status === "copied" ? "Copied" : "Copy link"}
+          {status === "copied" ? t("schemesSec.copied") : t("schemesSec.copyLink")}
         </button>
       </div>
       {status === "blocked" && (
         <p className="mt-2 flex items-start gap-1.5 text-[10px] font-medium text-amber-700 leading-snug">
           <Info className="h-3 w-3 flex-shrink-0 mt-px" />
-          This preview could not open the page automatically — the official link has been copied. Paste it in your browser.
+          {t("schemesSec.blockedMsg")}
         </p>
       )}
       {status === "copied" && (
         <p className="mt-2 flex items-start gap-1.5 text-[10px] font-medium text-emerald-700 leading-snug">
           <Check className="h-3 w-3 flex-shrink-0 mt-px" />
-          Official link copied to clipboard.
+          {t("schemesSec.copiedMsg")}
         </p>
       )}
     </div>
@@ -233,6 +250,7 @@ function SchemeDetailDialog({
   onClose: () => void;
   onDraft: (m: SchemeMatch) => void;
 }) {
+  const { t } = useLanguage();
   const s = m.scheme;
   return (
     <DialogShell onClose={onClose} label={`${s.name} scheme details`}>
@@ -244,7 +262,7 @@ function SchemeDetailDialog({
           </div>
           <div className="min-w-0">
             <h3 className="text-base font-bold text-foreground leading-tight">{s.name}</h3>
-            <p className="text-xs text-muted-foreground">Potentially relevant · {profileText}</p>
+            <p className="text-xs text-muted-foreground">{t("schemesSec.dialogSub").replace("{profileText}", profileText)}</p>
           </div>
         </div>
         <button
@@ -260,17 +278,17 @@ function SchemeDetailDialog({
         <div className="flex items-center gap-2 flex-wrap">
           <LevelChip level={m.level} />
           <span className="text-[11px] text-muted-foreground">
-            {m.percent}% of evaluated matching criteria
+            {t("schemesSec.dialogCriteria").replace("{percent}", String(m.percent))}
           </span>
         </div>
 
         {/* About */}
-        <Block icon={<Info className="h-3.5 w-3.5" />} title="About">
+        <Block icon={<Info className="h-3.5 w-3.5" />} title={t("schemesSec.about")}>
           <p className="text-sm text-muted-foreground leading-relaxed">{s.about}</p>
         </Block>
 
         {/* Who it may support */}
-        <Block icon={<Building2 className="h-3.5 w-3.5" />} title="Who it may support">
+        <Block icon={<Building2 className="h-3.5 w-3.5" />} title={t("schemesSec.whoSupports")}>
           <ul className="space-y-1">
             {s.whoItSupports.map((w, i) => (
               <li key={i} className="flex items-start gap-1.5 text-sm text-muted-foreground leading-snug">
@@ -281,7 +299,7 @@ function SchemeDetailDialog({
         </Block>
 
         {/* Support structure */}
-        <Block icon={<BadgeCheck className="h-3.5 w-3.5" />} title="Financing / support">
+        <Block icon={<BadgeCheck className="h-3.5 w-3.5" />} title={t("schemesSec.financingSupport")}>
           <div className="space-y-2.5">
             {s.supportStructure.map((d, i) => (
               <div key={i} className="rounded-xl border border-border bg-muted/30 p-3">
@@ -293,7 +311,7 @@ function SchemeDetailDialog({
         </Block>
 
         {/* Your match */}
-        <Block icon={<ClipboardList className="h-3.5 w-3.5" />} title="Why it matches your profile">
+        <Block icon={<ClipboardList className="h-3.5 w-3.5" />} title={t("schemesSec.whyMatches")}>
           {m.reasons.length > 0 ? (
             <ul className="space-y-1.5">
               {m.reasons.map((r, i) => (
@@ -304,11 +322,11 @@ function SchemeDetailDialog({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">No positive criteria could be confirmed from the available profile.</p>
+            <p className="text-sm text-muted-foreground">{t("schemesSec.noPositiveCriteria")}</p>
           )}
           {m.gaps.length > 0 && (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">To confirm / verify</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">{t("schemesSec.toConfirm")}</p>
               <ul className="space-y-1">
                 {m.gaps.map((g, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-xs text-amber-700 leading-snug">
@@ -322,7 +340,7 @@ function SchemeDetailDialog({
         </Block>
 
         {/* What you may need */}
-        <Block icon={<FileText className="h-3.5 w-3.5" />} title="What you may need">
+        <Block icon={<FileText className="h-3.5 w-3.5" />} title={t("schemesSec.whatYouNeed")}>
           <ul className="space-y-1">
             {s.requiredDocuments.map((d, i) => (
               <li key={i} className="flex items-start gap-1.5 text-sm text-muted-foreground leading-snug">
@@ -330,11 +348,11 @@ function SchemeDetailDialog({
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] text-muted-foreground">The exact checklist is set by the bank / implementing authority.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{t("schemesSec.checklistNote")}</p>
         </Block>
 
         {/* Next steps */}
-        <Block icon={<ArrowRight className="h-3.5 w-3.5" />} title="Next steps">
+        <Block icon={<ArrowRight className="h-3.5 w-3.5" />} title={t("schemesSec.nextSteps")}>
           <ol className="space-y-1.5">
             {s.applicationProcess.map((p, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground leading-snug">
@@ -348,11 +366,11 @@ function SchemeDetailDialog({
         {/* Sources */}
         <div className="rounded-xl border border-border p-3.5">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="font-bold text-foreground/80">Source: </span>{s.officialSource.name}
+            <span className="font-bold text-foreground/80">{t("schemesSec.source")}</span>{s.officialSource.name}
           </p>
           <OfficialSourceLink url={s.officialSource.url} />
           <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-            <span className="font-semibold">Note: </span>{s.note} GramUdaan's match is preliminary — it is not an approval or an eligibility certificate.
+            <span className="font-semibold">{t("schemesSec.note")}</span>{s.note} {t("schemesSec.preliminaryNote")}
           </p>
         </div>
 
@@ -363,7 +381,7 @@ function SchemeDetailDialog({
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <FileText className="h-4 w-4" />
-            Prepare Application Draft
+            {t("schemesSec.prepareDraft")}
           </button>
           <Link
             to="/report"
@@ -371,7 +389,7 @@ function SchemeDetailDialog({
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
           >
             <ClipboardList className="h-4 w-4" />
-            Generate Business Plan
+            {t("schemesSec.generatePlan")}
           </Link>
         </div>
       </div>
@@ -397,6 +415,7 @@ function Block({ icon, title, children }: { icon: React.ReactNode; title: string
 
 export default function SchemesSection() {
   const { feasibility, location, business, capital } = useOnboarding();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showHow, setShowHow] = useState(false);
@@ -440,55 +459,59 @@ export default function SchemesSection() {
             <Landmark className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-foreground">Government Schemes & Financing</h3>
-            <p className="text-xs text-muted-foreground">Potentially relevant programs matched to your business profile</p>
+            <h3 className="text-sm font-bold text-foreground">{t("schemesSec.sectionTitle")}</h3>
+            <p className="text-xs text-muted-foreground">{t("schemesSec.sectionSubtitle")}</p>
           </div>
         </div>
         <span className="sm:ml-auto inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-          ≈ Match — verify with official source
+          {t("schemesSec.badge")}
         </span>
       </div>
 
       {/* Profile summary */}
       <div className="rounded-xl border border-primary/10 bg-primary/[0.04] p-4 mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2">Schemes are ranked for your business</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2">{t("schemesSec.rankedTitle")}</p>
         <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><span className="font-semibold text-foreground">📍</span> {location.name}, {location.district}</span>
           <span className="flex items-center gap-1"><span className="font-semibold text-foreground">🏪</span> {business.name}</span>
-          <span className="flex items-center gap-1"><span className="font-semibold text-foreground">💰</span> {formatIndianCurrency(fin.availableContribution)} own capital</span>
-          <span className="flex items-center gap-1"><span className="font-semibold text-foreground">📊</span> {formatIndianCurrency(fin.totalProjectCost)} project cost</span>
+          <span className="flex items-center gap-1"><span className="font-semibold text-foreground">💰</span> {formatIndianCurrency(fin.availableContribution)} {t("schemesSec.ownCapital")}</span>
+          <span className="flex items-center gap-1"><span className="font-semibold text-foreground">📊</span> {formatIndianCurrency(fin.totalProjectCost)} {t("schemesSec.projectCost")}</span>
         </div>
         <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
           {fin.potentialLoan > 0
-            ? `Your estimated external financing need is ${formatIndianCurrency(fin.potentialLoan)}. Programs below are ranked against that need and your business type.`
-            : `No external financing is required for this structure; programs below are ranked by business-type fit only.`}
+            ? t("schemesSec.needExplainLoan").replace("{amount}", formatIndianCurrency(fin.potentialLoan))
+            : t("schemesSec.needExplainNoLoan")}
         </p>
       </div>
 
       {/* Result count */}
       <p className="text-sm text-foreground mb-3">
         {relevantCount > 0 ? (
-          <>Based on your profile, GramUdaan found <span className="font-bold text-primary">{relevantCount} potentially relevant {relevantCount === 1 ? "program" : "programs"}</span> to investigate.</>
+          t("schemesSec.foundPrograms").replace("{count}", String(relevantCount))
         ) : (
-          <>Based on the current profile, no scheme in GramUdaan's verified catalog shows a strong fit. The closest options are listed below — confirm any of them with the implementing authority.</>
+          t("schemesSec.noStrongFit")
         )}
       </p>
 
       {/* Filters */}
       {availableFilters.length > 1 && (
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {availableFilters.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
-                filter === f.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary",
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
+          {availableFilters.map((f) => {
+            const labelKey = `schemesSec.filter_${f.id}` as const;
+            const filterLabel = t(labelKey as any) || f.label;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+                  filter === f.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary",
+                )}
+              >
+                {filterLabel}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -497,7 +520,7 @@ export default function SchemesSection() {
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
             <Star className="h-4 w-4 text-amber-500 fill-amber-400" />
-            <p className="text-xs font-bold uppercase tracking-wider text-foreground">Recommended to explore first</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-foreground">{t("schemesSec.recommendedFirst")}</p>
           </div>
           <MatchCard m={top!} highlighted onOpen={setActiveId} />
         </div>
@@ -507,7 +530,7 @@ export default function SchemesSection() {
       {others.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-            {showTopCard ? "Other programs to explore" : "Programs to explore"}
+            {showTopCard ? t("schemesSec.otherPrograms") : t("schemesSec.programsToExplore")}
           </p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {others.map((m) => (
@@ -525,21 +548,27 @@ export default function SchemesSection() {
           aria-expanded={showHow}
         >
           <HelpCircle className="h-3.5 w-3.5" />
-          How did GramUdaan match these schemes?
+          {t("schemesSec.howMatchTitle")}
           {showHow ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
         {showHow && (
           <div className="mt-2 rounded-xl bg-muted/40 p-3.5 animate-fade-in">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              GramUdaan compared your profile against each scheme's published scope using fixed, transparent rules. It considered:
+              {t("schemesSec.howMatchDesc")}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {["Business type", "Location (state)", "Project cost", "Your contribution", "Financing need"].map((k) => (
+              {[
+                t("schemesSec.critBizType"),
+                t("schemesSec.critLocation"),
+                t("schemesSec.critCost"),
+                t("schemesSec.critContribution"),
+                t("schemesSec.critNeed"),
+              ].map((k) => (
                 <span key={k} className="rounded-full bg-white border border-border px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">{k}</span>
               ))}
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-              Match % shows only the criteria GramUdaan could evaluate from the information you provided. Nothing here confirms eligibility — that is decided by the scheme's implementing authority.
+              {t("schemesSec.howMatchFootnote")}
             </p>
           </div>
         )}
@@ -549,7 +578,7 @@ export default function SchemesSection() {
       <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
         <ShieldAlert className="h-4 w-4 flex-shrink-0 text-amber-600 mt-0.5" />
         <div>
-          <p className="text-[11px] font-bold text-amber-800">Preliminary AI-assisted match — not an eligibility confirmation</p>
+          <p className="text-[11px] font-bold text-amber-800">{t("schemesSec.disclaimerTitle")}</p>
           <p className="text-[11px] text-amber-700 leading-relaxed mt-0.5">{result.disclaimer} {result.verifyNote}</p>
         </div>
       </div>

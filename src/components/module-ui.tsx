@@ -50,18 +50,23 @@ export function ModuleHeader({
   );
 }
 
+import { useLanguage } from "@/i18n/LanguageContext";
+
 /** Full-width empty state shown when no assessment has been run yet. */
 export function ModuleEmptyState({
   title,
   description,
   icon,
-  primaryLabel = "Start Assessment",
+  primaryLabel,
 }: {
   title: string;
   description: string;
   icon?: ReactNode;
   primaryLabel?: string;
 }) {
+  const { t } = useLanguage();
+  const label = primaryLabel || t("common.startAssessment");
+
   return (
     <div className="rounded-2xl border border-dashed border-border bg-white p-6 sm:p-10">
       <div className="mx-auto max-w-md text-center">
@@ -74,7 +79,7 @@ export function ModuleEmptyState({
           to="/onboarding"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          {primaryLabel}
+          {label}
           <ArrowUpRight className="h-4 w-4" />
         </Link>
       </div>

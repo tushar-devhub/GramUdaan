@@ -32,12 +32,66 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
     }).index("email", ["email"]), // index for the email. do not remove or modify
 
-    // add other tables here
+    // User profiles for progressive registration and profile settings
+    profiles: defineTable({
+      userId: v.id("users"),
+      fullName: v.string(),
+      mobile: v.string(),
+      email: v.optional(v.string()),
+      age: v.optional(v.string()),
+      gender: v.optional(v.string()),
+      state: v.optional(v.string()),
+      district: v.optional(v.string()),
+      village: v.optional(v.string()),
+      pincode: v.optional(v.string()),
+      businessCategory: v.optional(v.string()),
+      businessSubCategory: v.optional(v.string()),
+      existingOrNew: v.optional(v.string()),
+      availableCapital: v.optional(v.number()),
+      goal: v.optional(v.string()),
+      preferredLanguage: v.optional(v.string()),
+      updatedAt: v.number(),
+    }).index("by_user", ["userId"]),
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    // Isolated saved decision reports per user
+    reports: defineTable({
+      userId: v.id("users"),
+      title: v.string(),
+      businessId: v.string(),
+      businessName: v.string(),
+      subCategoryId: v.optional(v.string()),
+      locationId: v.string(),
+      locationName: v.string(),
+      capital: v.number(),
+      targetInvestment: v.optional(v.number()),
+      otherFunding: v.optional(v.number()),
+      placeStatus: v.optional(v.string()),
+      rentMonthly: v.optional(v.number()),
+      scaleChoice: v.optional(v.string()),
+      overallScore: v.number(),
+      verdict: v.string(),
+      verdictLabel: v.string(),
+      feasibilityData: v.any(),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_user_created", ["userId", "createdAt"]),
+
+    // Isolated loan applications per user
+    applications: defineTable({
+      userId: v.id("users"),
+      reportId: v.optional(v.id("reports")),
+      businessName: v.string(),
+      applicantName: v.string(),
+      mobile: v.string(),
+      state: v.string(),
+      district: v.string(),
+      projectCost: v.number(),
+      ownContribution: v.number(),
+      requestedLoan: v.number(),
+      schemeName: v.string(),
+      status: v.string(),
+      formData: v.any(),
+      updatedAt: v.number(),
+    }).index("by_user", ["userId"]),
   },
   {
     schemaValidation: false,

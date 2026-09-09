@@ -43,7 +43,7 @@ export const businessCategories: BusinessCategory[] = [
   {
     id: "poultry-feed",
     name: "Poultry Feed",
-    nameHi: "मुर्गी चारा",
+    nameHi: "मुर्गी दाना",
     icon: "🌾",
     description: "Feed supply for poultry farms",
     descriptionHi: "पोल्ट्री फार्म के लिए चारा आपूर्ति",
@@ -93,7 +93,7 @@ export const businessCategories: BusinessCategory[] = [
   {
     id: "retail",
     name: "Retail",
-    nameHi: "रिटेल",
+    nameHi: "खुदरा व्यापार",
     icon: "🛒",
     description: "General store, variety and convenience shop",
     descriptionHi: "जनरल स्टोर, वैरायटी और कन्वीनिएंस शॉप",
@@ -131,3 +131,39 @@ export const businessCategories: BusinessCategory[] = [
     category: "other",
   },
 ];
+
+export function isAgriCategory(businessId: string): boolean {
+  const agriIds = ["dairy", "poultry", "food-processing", "agri-inputs"];
+  return agriIds.includes(businessId);
+}
+
+export type DataSourceType = "census" | "osm" | "agmarknet_mandi" | "historical_crop_price";
+
+export interface CategoryDataConfig {
+  businessId: string;
+  isAgriBusiness: boolean;
+  allowedDataSources: DataSourceType[];
+  agriDataAllowed: boolean;
+  notesHi: string;
+}
+
+export function getCategoryDataConfig(businessId: string): CategoryDataConfig {
+  const isAgri = isAgriCategory(businessId);
+  if (isAgri) {
+    return {
+      businessId,
+      isAgriBusiness: true,
+      allowedDataSources: ["census", "osm", "agmarknet_mandi", "historical_crop_price"],
+      agriDataAllowed: true,
+      notesHi: "कृषि श्रेणी — जनगणना 2011, OpenStreetMap दर्ज व्यवसाय, AGMARKNET थोक मंडी भाव एवं ऐतिहासिक फ़सल मूल्य लागू हैं।",
+    };
+  }
+  return {
+    businessId,
+    isAgriBusiness: false,
+    allowedDataSources: ["census", "osm"],
+    agriDataAllowed: false,
+    notesHi: "गैर-कृषि श्रेणी — केवल जनगणना 2011 एवं OpenStreetMap आस-पास के दर्ज व्यवसाय लागू हैं। (मंडी डेटा लागू नहीं)",
+  };
+}
+

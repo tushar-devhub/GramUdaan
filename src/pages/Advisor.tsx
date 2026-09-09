@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   Send,
   Bot,
   User,
   ArrowUpRight,
-  Home,
-  ChevronRight,
   Sparkles,
   Mic,
   Check,
@@ -14,7 +13,6 @@ import {
 import { Link } from "react-router";
 import { cn } from "@/lib/utils";
 import { generateAdvisorReply, runFeasibility } from "@/services/advisor/engine";
-import type { AdvisorStateChange } from "@/services/advisor/engine";
 
 interface Message {
   id: string;
@@ -24,23 +22,26 @@ interface Message {
   timestamp: Date;
 }
 
-const DEFAULT_SUGGESTIONS: string[] = [
-  "Why is my score what it is?",
-  "Which business is better for me?",
-  "How much loan do I need?",
-  "Which government scheme may help?",
-  "What should I do next?",
-  "मेरे पास 2 लाख हैं, गाँव में dairy शुरू करना है",
-];
-
 export default function Advisor() {
+  const { t } = useLanguage();
   const {
-    feasibility, location, business, capital, radius,
+    feasibility, analysisResult, location, business, capital, radius,
     setLocation, setBusiness, setCapital, setFeasibility,
   } = useOnboarding();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+
+  const defaultSuggestions = [
+    t("advisor.q1"),
+    t("advisor.q2"),
+    t("advisor.q3"),
+    t("advisor.q4"),
+    t("advisor.q5"),
+    t("advisor.q6"),
+  ];
+
+  const [customSuggestions, setCustomSuggestions] = useState<string[] | null>(null);
+  const suggestions = customSuggestions ?? defaultSuggestions;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -51,7 +52,7 @@ export default function Advisor() {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  const businessName = business?.name || (location ? "your business" : "your business");
+  const businessName = business?.name || "your business";
   const locationName = location ? `${location.name}, ${location.district}` : "your location";
 
   const handleSend = useCallback(async (text?: string) => {
@@ -66,11 +67,11 @@ export default function Advisor() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    setSuggestions([]);
+    setCustomSuggestions([]);
 
     const reply = generateAdvisorReply({
       message: question,
-      context: { location, business, capital, feasibility, radius },
+      context: { location, business, capital, feasibility, analysisResult, radius },
     });
 
     // Sync asserted changes into shared context (single source of truth)
@@ -95,11 +96,11 @@ export default function Advisor() {
     setMessages((prev) => [...prev, aiMsg]);
 
     if (reply.followups.length > 0) {
-      setSuggestions(reply.followups);
+      setCustomSuggestions(reply.followups);
     } else {
-      setSuggestions(DEFAULT_SUGGESTIONS.slice(0, 4));
+      setCustomSuggestions(defaultSuggestions.slice(0, 4));
     }
-  }, [input, location, business, capital, feasibility, setLocation, setBusiness, setCapital, setFeasibility]);
+  }, [input, location, business, capital, feasibility, defaultSuggestions, setLocation, setBusiness, setCapital, setFeasibility]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -120,15 +121,14 @@ export default function Advisor() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">AI Business Advisor</h1>
+              <h1 className="text-xl font-bold text-foreground">{t("advisor.title")}</h1>
               <p className="text-xs text-muted-foreground">
-                Context-aware guidance for {businessName} in {locationName}
+                {t("advisor.subtitle").replace("{business}", businessName).replace("{location}", locationName)}
               </p>
             </div>
           </div>
           <div className="mt-2 rounded-xl border border-border/70 bg-white px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-            🎤 बोलकर पूछने के लिए नीचे दाएँ <Mic className="inline h-3 w-3" /> button दबाएँ — यहाँ लिखकर भी पूछ सकते हैं (Hindi / Hinglish / English)।
-            सभी जवाब आपके current GramUdaan analysis और financial engine से निकलते हैं।
+            {t("advisor.micBanner")}
           </div>
         </div>
 
@@ -142,17 +142,16 @@ export default function Advisor() {
                   <Bot className="h-7 w-7" />
                 </div>
                 <h3 className="text-base font-bold text-foreground mb-1">
-                  Ask me anything about your business assessment
+                  {t("advisor.welcomeTitle")}
                 </h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  I understand your location, business type, capital, market data and financial structure.
-                  Answers come from your actual analysis — not a generic chatbot.
+                  {t("advisor.welcomeDesc")}
                 </p>
                 {feasibility && (
                   <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     <span className="text-xs font-semibold text-emerald-700">
-                      Loaded: {business?.name ?? "—"} · {feasibility.overallScore}/100 ({feasibility.verdictLabel})
+                      {t("advisor.loaded")} {business?.name ?? "—"} · {feasibility.overallScore}/100 ({feasibility.verdictLabel})
                     </span>
                   </div>
                 )}
@@ -185,7 +184,7 @@ export default function Advisor() {
                   {msg.appliedNote && (
                     <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-semibold">
                       <Check className="h-3 w-3" />
-                      {msg.appliedNote} — analysis updated
+                      {msg.appliedNote} — {t("advisor.analysisUpdated")}
                     </div>
                   )}
                 </div>
@@ -204,7 +203,7 @@ export default function Advisor() {
           {suggestions.length > 0 && (
             <div className="px-4 pb-3 border-t border-border/50 pt-3">
               <p className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-                Suggested Questions
+                {t("advisor.suggestedQuestions")}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {suggestions.map((q) => (
@@ -229,7 +228,7 @@ export default function Advisor() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder="Ask about your business analysis… (Hindi / Hinglish / English)"
+                placeholder={t("advisor.inputPlaceholder")}
                 className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <button
@@ -241,7 +240,7 @@ export default function Advisor() {
                     ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : "bg-muted text-muted-foreground",
                 )}
-                aria-label="Send question"
+                aria-label={t("advisor.sendQuestion")}
               >
                 <Send className="h-4 w-4" />
               </button>
@@ -251,7 +250,7 @@ export default function Advisor() {
               className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground hover:text-primary transition-colors"
             >
               <Mic className="h-3 w-3" />
-              बोलकर पूछना है? नीचे दाएँ "AI Advisor" bubble में 🎙️ दबाएँ
+              {t("advisor.voiceHint")}
             </button>
           </div>
         </div>
@@ -262,13 +261,13 @@ export default function Advisor() {
             to="/dashboard"
             className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
           >
-            Back to Dashboard
+            {t("advisor.backToDashboard")}
           </Link>
           <Link
             to="/what-if"
             className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            Try What-If
+            {t("advisor.tryWhatIf")}
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>

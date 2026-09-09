@@ -63,7 +63,7 @@ export interface SchemeProfileInput {
 }
 
 export const SCHEME_DISCLAIMER =
-  "GramUdaan provides an AI-assisted preliminary match only. Final eligibility, benefits and approval depend on the official scheme guidelines and the relevant authority/lender.";
+  "सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है। GramUdaan provides an AI-assisted preliminary match only. Final eligibility, benefits and approval depend on the official scheme guidelines and the relevant authority/lender.";
 
 export const SCHEME_VERIFY_NOTE =
   "Scheme information is provided for preliminary guidance. Please verify current terms with the official source before relying on it.";

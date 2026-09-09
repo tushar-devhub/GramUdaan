@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { generateAdvisorReply, runFeasibility } from "@/services/advisor/engine";
 import type { AdvisorStateChange } from "@/services/advisor/engine";
 import {
@@ -37,15 +38,6 @@ interface ChatMessage {
 
 type AppState = "idle" | "listening" | "recording" | "confirming" | "thinking" | "speaking" | "error" | "permission_required";
 
-const DEFAULT_PROMPTS: string[] = [
-  "मेरे लिए कौन सा business अच्छा है?",
-  "मेरा score क्यों है?",
-  "मुझे कितना loan मिलेगा?",
-  "Competition कैसा है?",
-  "मुझे कौन सी scheme मिल सकती है?",
-  "अब मुझे क्या करना चाहिए?",
-];
-
 // Apply an engine-recommended state change to the shared context (single source of truth).
 function applyContextChange(
   change: AdvisorStateChange | undefined,
@@ -71,6 +63,7 @@ function applyContextChange(
 }
 
 export function VoiceAssistant() {
+  const { t, language } = useLanguage();
   const { pathname } = useLocation();
   const isAppShell = isShellPath(pathname);
   const [isOpen, setIsOpen] = useState(false);
@@ -84,7 +77,18 @@ export function VoiceAssistant() {
   const [micVolume, setMicVolume] = useState(0);
   const [lastResponseText, setLastResponseText] = useState("");
   const [showWelcome, setShowWelcome] = useState(true);
-  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_PROMPTS);
+
+  const defaultPrompts = [
+    t("advisor.q1"),
+    t("advisor.q2"),
+    t("advisor.q3"),
+    t("advisor.q4"),
+    t("advisor.q5"),
+    t("advisor.q6"),
+  ];
+
+  const [customSuggestions, setCustomSuggestions] = useState<string[] | null>(null);
+  const suggestions = customSuggestions ?? defaultPrompts;
   const [micSupported] = useState(() => isSpeechRecognitionSupported());
   const [recorderSupported] = useState(() => isMediaRecorderSupported());
   const [voiceErrCode, setVoiceErrCode] = useState<string | null>(null);
@@ -145,7 +149,7 @@ export function VoiceAssistant() {
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setAppState("thinking");
-    setSuggestions([]);
+    setCustomSuggestions([]);
 
     try {
       const reply = generateAdvisorReply({
@@ -168,9 +172,9 @@ export function VoiceAssistant() {
       setShowWelcome(false);
 
       if (reply.followups.length > 0) {
-        setSuggestions(reply.followups);
+        setCustomSuggestions(reply.followups);
       } else if (messages.length < 2) {
-        setSuggestions(DEFAULT_PROMPTS);
+        setCustomSuggestions(null);
       }
 
       // Speak the response in Hindi/Hinglish when enabled
@@ -192,13 +196,13 @@ export function VoiceAssistant() {
         setAppState("idle");
       }
     } catch {
-      setError("जवाब तैयार नहीं हो पाया। कृपया दोबारा कोशिश करें।");
+      setError(language === "hi" ? "जवाब तैयार नहीं हो पाया। कृपया दोबारा कोशिश करें।" : "Could not generate reply. Please try again.");
       setAppState("error");
-      setSuggestions(DEFAULT_PROMPTS);
+      setCustomSuggestions(null);
     } finally {
       busyRef.current = false;
     }
-  }, [location, business, capital, feasibility, setBusiness, setCapital, setLocation, setFeasibility, ttsEnabled]);
+  }, [location, business, capital, feasibility, setBusiness, setCapital, setLocation, setFeasibility, ttsEnabled, language]);
 
   // ─── Native browser speech recognition (works outside sandboxed iframes) ───
   const handleVoiceStart = useCallback(async () => {
@@ -214,7 +218,7 @@ export function VoiceAssistant() {
       if (recorderSupported) {
         startRecordMode();
       } else {
-        setError("इस browser में voice input उपलब्ध नहीं है। कृपया लिखकर पूछें।");
+        setError(language === "hi" ? "इस browser में voice input उपलब्ध नहीं है। कृपया लिखकर पूछें।" : "Voice input is not available in this browser. Please type below.");
         setAppState("error");
       }
       return;
@@ -266,7 +270,7 @@ export function VoiceAssistant() {
       },
       () => { /* mic live */ },
     );
-  }, [micSupported, recorderSupported]);
+  }, [micSupported, recorderSupported, language]);
 
   // ─── Fallback: record audio locally, then transcribe on the server ───
   const startRecordMode = useCallback(async () => {
@@ -289,13 +293,13 @@ export function VoiceAssistant() {
 
     const result = await startManualRecording((vol) => setMicVolume(vol));
     if (!result.ok) {
-      setError(result.error || "Microphone शुरू नहीं हो पाई।");
+      setError(result.error || (language === "hi" ? "Microphone शुरू नहीं हो पाई।" : "Could not start microphone."));
       setAppState("error");
       return;
     }
     setAppState("recording");
     setRecordingSeconds(0);
-  }, []);
+  }, [language]);
 
   // Keep a ref so handleVoiceStart can auto-fall back into recording mode
   const startRecordModeRef = useRef<() => void>(() => {});
@@ -305,7 +309,7 @@ export function VoiceAssistant() {
     const recording = await stopManualRecording();
     setMicVolume(0);
     if (!recording.blob) {
-      setError("कोई आवाज़ रिकॉर्ड नहीं हुई। दोबारा बोलें।");
+      setError(language === "hi" ? "कोई आवाज़ रिकॉर्ड नहीं हुई। दोबारा बोलें।" : "No audio recorded. Please speak again.");
       setAppState("error");
       return;
     }
@@ -321,16 +325,18 @@ export function VoiceAssistant() {
 
     if (result.error === "not_configured") {
       setError(
-        "Voice transcription अभी configured नहीं है। Freebuff के Keys/API keys में DEEPGRAM_API_KEY डालें, फिर दोबारा try करें।",
+        language === "hi"
+          ? "Voice transcription अभी configured नहीं है। Freebuff के Keys/API keys में DEEPGRAM_API_KEY डालें, फिर दोबारा try करें।"
+          : "Voice transcription is not configured. Please set DEEPGRAM_API_KEY.",
       );
     } else if (result.error === "no_speech") {
-      setError("कोई आवाज़ नहीं सुनाई दी। दोबारा बोलें।");
+      setError(language === "hi" ? "कोई आवाज़ नहीं सुनाई दी। दोबारा बोलें।" : "No voice detected. Please try again.");
     } else {
-      setError("आवाज़ transcribe नहीं हो पाई। Internet check करके दोबारा try करें।");
+      setError(language === "hi" ? "आवाज़ transcribe नहीं हो पाई। Internet check करके दोबारा try करें।" : "Failed to transcribe audio. Please check internet connection.");
     }
     setVoiceErrCode("server");
     setAppState("error");
-  }, []);
+  }, [language]);
 
   const handleVoiceStop = useCallback(() => {
     stopListening();
@@ -411,8 +417,8 @@ export function VoiceAssistant() {
           aria-label="Open GramUdaan Voice Advisor"
         >
           <Bot className="h-5 w-5" />
-          <span className="text-sm font-semibold hidden sm:inline">AI Advisor</span>
-          <span className="text-xs font-medium bg-primary-foreground/20 px-2 py-0.5 rounded-full">हिंदी</span>
+          <span className="text-sm font-semibold hidden sm:inline">{t("voice.aiAdvisor")}</span>
+          <span className="text-xs font-medium bg-primary-foreground/20 px-2 py-0.5 rounded-full">{language === "hi" ? "हिंदी" : "English"}</span>
         </button>
       )}
 
@@ -431,16 +437,16 @@ export function VoiceAssistant() {
                 <Bot className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-foreground font-serif-display">GramUdaan AI Advisor</h3>
+                <h3 className="text-sm font-bold text-foreground font-serif-display">{t("voice.panelTitle")}</h3>
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   <p className="text-[11px] text-muted-foreground truncate">
-                    {appState === "listening" ? "सुन रहा हूँ..." :
-                     appState === "thinking" ? "आपके analysis की जाँच कर रहा हूँ..." :
-                     appState === "speaking" ? "जवाब दे रहा हूँ..." :
-                     appState === "confirming" ? "पुष्टि करें..." :
+                    {appState === "listening" ? t("voice.listening") :
+                     appState === "thinking" ? t("voice.thinking") :
+                     appState === "speaking" ? t("voice.speaking") :
+                     appState === "confirming" ? t("voice.confirming") :
                      business && location ? `${business.name} · ${location.name}` :
-                     "आपका Business Advisor"}
+                     t("voice.defaultAdvisor")}
                   </p>
                 </div>
               </div>
@@ -448,8 +454,8 @@ export function VoiceAssistant() {
                 <button
                   onClick={() => setTtsEnabled(!ttsEnabled)}
                   className={cn("p-2 rounded-lg transition-colors", ttsEnabled ? "hover:bg-muted" : "bg-muted/70")}
-                  title={ttsEnabled ? "Voice बंद करें" : "Voice चालू करें"}
-                  aria-label={ttsEnabled ? "Disable voice output" : "Enable voice output"}
+                  title={ttsEnabled ? t("voice.disableTts") : t("voice.enableTts")}
+                  aria-label={ttsEnabled ? t("voice.disableTts") : t("voice.enableTts")}
                 >
                   {ttsEnabled ? <Volume2 className="h-4 w-4 text-muted-foreground" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
                 </button>
@@ -462,7 +468,7 @@ export function VoiceAssistant() {
             {/* Context strip */}
             {feasibility && (
               <div className="px-4 py-1.5 bg-emerald-50/70 border-b border-emerald-100 flex items-center gap-2 overflow-x-auto">
-                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex-shrink-0">Analysis:</span>
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex-shrink-0">{t("voice.analysisLabel")}</span>
                 <span className="text-[10px] text-emerald-800 whitespace-nowrap">
                   {business?.name} · {location?.name}
                 </span>
@@ -480,21 +486,21 @@ export function VoiceAssistant() {
                   <div className="h-14 w-14 rounded-2xl bg-primary/10 mx-auto mb-3 flex items-center justify-center">
                     <Bot className="h-7 w-7 text-primary" />
                   </div>
-                  <p className="text-sm font-bold text-foreground mb-1">नमस्ते! 🙏</p>
+                  <p className="text-sm font-bold text-foreground mb-1">{t("voice.welcomeGreeting")}</p>
                   <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                    मैं GramUdaan हूँ। मैं आपके business analysis को समझता हूँ — बोलिए या लिखिए, और मैं असली analysis data से जवाब दूँगा।
+                    {t("voice.welcomeBody")}
                   </p>
                   {feasibility ? (
                     <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       <span className="text-[11px] font-medium text-emerald-700">
-                        Analysis loaded: {feasibility.overallScore}/100 · {business?.name}
+                        {t("voice.analysisLoaded").replace("{score}", String(feasibility.overallScore)).replace("{business}", business?.name ?? "")}
                       </span>
                     </div>
                   ) : (
                     <div className="mt-3 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5">
                       <span className="text-[11px] font-medium text-amber-700">
-                        कोई analysis नहीं — location + business + capital बताइए, मैं चला दूँगा
+                        {t("voice.noAnalysis")}
                       </span>
                     </div>
                   )}
@@ -507,13 +513,13 @@ export function VoiceAssistant() {
                         <Mic className="h-7 w-7" />
                       </div>
                       <span className="text-xs font-medium text-primary">
-                        {micSupported ? "बोलकर पूछें" : "बोलकर पूछें (ऑडियो)"}
+                        {micSupported ? t("voice.speakPrompt") : t("voice.speakPromptAudio")}
                       </span>
                     </button>
                   ) : (
-                    <p className="text-[10px] text-red-500 mt-4">इस browser में voice उपलब्ध नहीं — नीचे लिखकर पूछें</p>
+                    <p className="text-[10px] text-red-500 mt-4">{t("voice.voiceUnavailable")}</p>
                   )}
-                  <p className="text-[10px] text-muted-foreground mt-2">या अपना सवाल नीचे लिखें</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">{t("voice.typeBelow")}</p>
                 </div>
               )}
 
@@ -538,7 +544,7 @@ export function VoiceAssistant() {
                     )}
                     {msg.role === "assistant" && (
                       <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border/30">
-                        <button onClick={handleReplay} className="p-1 rounded hover:bg-background/50 transition-colors" title="फिर सुनें" aria-label="Replay response">
+                        <button onClick={handleReplay} className="p-1 rounded hover:bg-background/50 transition-colors" title={t("voice.replay")} aria-label="Replay response">
                           <Volume2 className="h-3 w-3" />
                         </button>
                         <button
@@ -573,20 +579,20 @@ export function VoiceAssistant() {
               {appState === "confirming" && finalTranscript && (
                 <div className="animate-fade-in">
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">क्या आपने कहा:</p>
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">{t("voice.didYouSay")}</p>
                     <p className="text-sm font-medium text-foreground mb-2.5">"{finalTranscript}"</p>
                     <div className="flex gap-2">
                       <button
                         onClick={handleConfirmTranscript}
                         className="flex-1 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
                       >
-                        हाँ, पूछें ✓
+                        {t("voice.yesAsk")}
                       </button>
                       <button
                         onClick={handleRetryVoice}
                         className="flex-1 rounded-lg bg-white border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors"
                       >
-                        फिर बोलें
+                        {t("voice.speakAgain")}
                       </button>
                     </div>
                   </div>
@@ -605,7 +611,7 @@ export function VoiceAssistant() {
                       <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "150ms" }} />
                       <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "300ms" }} />
                     </div>
-                    <span className="text-[11px] text-muted-foreground">आपके analysis की जाँच कर रहा हूँ...</span>
+                    <span className="text-[11px] text-muted-foreground">{t("voice.checkingAnalysis")}</span>
                   </div>
                 </div>
               )}
@@ -618,7 +624,7 @@ export function VoiceAssistant() {
                     <p className="text-xs text-red-700">{error}</p>
                     {voiceErrCode === "network" && recorderSupported && (
                       <p className="text-[10px] text-red-500 mt-1 leading-relaxed">
-                        इस browser में direct voice recognition connect नहीं हो पा रहा — audio recording के ज़रिए server-side transcription उपयोग करें।
+                        {t("voice.directVoiceFailed")}
                       </p>
                     )}
                     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
@@ -627,14 +633,14 @@ export function VoiceAssistant() {
                           onClick={() => { setError(null); setVoiceErrCode(null); startRecordMode(); }}
                           className="text-[11px] font-bold text-red-700 hover:underline"
                         >
-                          🎙️ ऑडियो से पूछें
+                          {t("voice.askWithAudio")}
                         </button>
                       )}
                       <button onClick={handleRetryVoice} className="text-[11px] font-semibold text-red-600 hover:underline">
-                        दोबारा बोलें →
+                        {t("voice.speakAgainAction")}
                       </button>
                       <button onClick={() => { setError(null); setAppState("idle"); inputRef.current?.focus(); }} className="text-[11px] font-semibold text-muted-foreground hover:underline">
-                        लिखकर पूछें
+                        {t("voice.typeQuestionAction")}
                       </button>
                     </div>
                   </div>
@@ -677,7 +683,7 @@ export function VoiceAssistant() {
                       );
                     })}
                   </div>
-                  <span className="text-xs font-medium text-primary">सुन रहा हूँ... बोलिए</span>
+                  <span className="text-xs font-medium text-primary">{t("voice.listening")}</span>
                 </div>
               </div>
             )}
@@ -692,7 +698,7 @@ export function VoiceAssistant() {
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
                     </span>
                     <span className="text-xs font-semibold text-red-700">
-                      रिकॉर्ड हो रहा है… {recordingSeconds}s
+                      {t("voice.recording").replace("{seconds}", String(recordingSeconds))}
                     </span>
                   </div>
                   <div className="flex items-center justify-center gap-2">
@@ -700,13 +706,13 @@ export function VoiceAssistant() {
                       onClick={stopRecordAndSend}
                       className="rounded-lg bg-red-600 text-white px-3.5 py-1.5 text-[11px] font-semibold hover:bg-red-700 transition-colors"
                     >
-                      ⏹ रोकें और भेजें
+                      {t("voice.stopAndSend")}
                     </button>
                     <button
                       onClick={handleRecordCancel}
                       className="rounded-lg bg-white border border-border px-3.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-colors"
                     >
-                      रद्द करें
+                      {t("voice.cancel")}
                     </button>
                   </div>
                 </div>
@@ -718,9 +724,9 @@ export function VoiceAssistant() {
               <div className="px-4 py-2.5 bg-emerald-50 border-t border-emerald-100">
                 <div className="flex items-center justify-center gap-3">
                   <Volume2 className="h-3.5 w-3.5 text-emerald-600 animate-pulse" />
-                  <span className="text-xs font-medium text-emerald-700">जवाब दे रहा हूँ...</span>
+                  <span className="text-xs font-medium text-emerald-700">{t("voice.speaking")}</span>
                   <button onClick={handleStopSpeaking} className="text-[10px] font-semibold text-emerald-600 underline" aria-label="Stop speaking">
-                    रोकें
+                    {t("voice.stop")}
                   </button>
                 </div>
               </div>
@@ -740,7 +746,7 @@ export function VoiceAssistant() {
                       if (inputText.trim()) sendMessage(inputText);
                     }
                   }}
-                  placeholder="अपना सवाल लिखें... (Hindi / Hinglish / English)"
+                  placeholder={t("voice.inputPlaceholder")}
                   className="flex-1 rounded-xl border border-border bg-muted/50 px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
                   disabled={appState === "thinking" || appState === "confirming"}
                 />
@@ -794,8 +800,8 @@ export function VoiceAssistant() {
                       "h-10 w-10 rounded-xl flex items-center justify-center transition-colors disabled:opacity-40",
                       micSupported || recorderSupported ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground",
                     )}
-                    aria-label={micSupported ? "Start voice input" : recorderSupported ? "Start audio recording" : "Voice input not supported"}
-                    title={micSupported ? "बोलकर पूछें" : recorderSupported ? "बोलकर पूछें (ऑडियो)" : "Voice input not supported"}
+                    aria-label={micSupported ? t("voice.speakPrompt") : recorderSupported ? t("voice.speakPromptAudio") : t("voice.voiceUnavailable")}
+                    title={micSupported ? t("voice.speakPrompt") : recorderSupported ? t("voice.speakPromptAudio") : t("voice.voiceUnavailable")}
                   >
                     <Mic className="h-4 w-4" />
                   </button>
@@ -809,7 +815,7 @@ export function VoiceAssistant() {
                   className="w-full mt-2 flex items-center justify-center gap-1.5 text-[10px] font-medium text-muted-foreground hover:text-primary transition-colors"
                 >
                   <Play className="h-3 w-3" />
-                  फिर सुनें · Replay
+                  {t("voice.replay")}
                 </button>
               )}
             </div>

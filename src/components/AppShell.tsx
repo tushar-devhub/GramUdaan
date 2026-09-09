@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useOnboarding } from "@/lib/onboarding-context";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   LayoutDashboard,
   Bot,
@@ -28,60 +29,63 @@ import {
   Target,
   ShieldCheck,
   Compass,
+  Languages,
 } from "lucide-react";
+
+import type { TranslationKey } from "@/i18n/translations/en";
 
 type Icon = ComponentType<{ className?: string }>;
 
-interface NavItem {
-  label: string;
+export interface NavItemConfig {
+  labelKey: TranslationKey;
   to: string;
   icon: Icon;
   /** match only exact path (for parents of overlapping routes) */
   exact?: boolean;
 }
 
-interface NavGroup {
-  label: string;
-  items: NavItem[];
+export interface NavGroupConfig {
+  labelKey: TranslationKey;
+  items: NavItemConfig[];
 }
 
-export const APP_NAV: NavGroup[] = [
+export const APP_NAV_CONFIG: NavGroupConfig[] = [
   {
-    label: "Overview",
+    labelKey: "nav.group.overview",
     items: [
-      { label: "Home", to: "/dashboard", icon: LayoutDashboard, exact: true },
-      { label: "AI Advisor", to: "/advisor", icon: Bot },
+      { labelKey: "nav.home", to: "/dashboard", icon: LayoutDashboard, exact: true },
+      { labelKey: "nav.advisor", to: "/advisor", icon: Bot },
     ],
   },
   {
-    label: "Business",
+    labelKey: "nav.group.business",
     items: [
-      { label: "Business Analysis", to: "/analysis", icon: ShieldCheck },
-      { label: "Compare Businesses", to: "/compare", icon: Scale },
+      { labelKey: "nav.analysis", to: "/analysis", icon: ShieldCheck },
+      { labelKey: "nav.compare", to: "/compare", icon: Scale },
     ],
   },
   {
-    label: "Finance",
+    labelKey: "nav.group.finance",
     items: [
-      { label: "Financial Planning", to: "/finance", icon: Wallet },
-      { label: "Advisory Journey", to: "/plan", icon: Compass },
-      { label: "What-If Simulator", to: "/what-if", icon: Calculator },
+      { labelKey: "nav.finance", to: "/finance", icon: Wallet },
+      { labelKey: "nav.plan", to: "/plan", icon: Compass },
+      { labelKey: "nav.whatIf", to: "/what-if", icon: Calculator },
     ],
   },
   {
-    label: "Market",
-    items: [{ label: "Market & Competition", to: "/market", icon: MapPin }],
+    labelKey: "nav.group.market",
+    items: [{ labelKey: "nav.market", to: "/market", icon: MapPin }],
   },
   {
-    label: "Financing",
-    items: [{ label: "Schemes & Financing", to: "/schemes", icon: Landmark }],
+    labelKey: "nav.group.financing",
+    items: [{ labelKey: "nav.schemes", to: "/schemes", icon: Landmark }],
   },
   {
-    label: "Reports",
+    labelKey: "nav.group.reports",
     items: [
-      { label: "Reports Hub", to: "/reports", icon: FileText, exact: true },
-      { label: "Decision Report", to: "/report", icon: TrendingUp, exact: true },
-      { label: "Loan Application", to: "/application", icon: IndianRupee },
+      { labelKey: "nav.reports", to: "/reports", icon: FileText, exact: true },
+      { labelKey: "nav.report", to: "/report", icon: TrendingUp, exact: true },
+      { labelKey: "nav.application", to: "/application", icon: IndianRupee },
     ],
   },
 ];
@@ -117,10 +121,11 @@ function NavRow({
   onClick,
   className,
 }: {
-  item: NavItem;
+  item: NavItemConfig;
   onClick?: () => void;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const Icon = item.icon;
   return (
     <NavLink
@@ -140,7 +145,7 @@ function NavRow({
       {({ isActive }) => (
         <>
           <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-emerald-700" : "text-muted-foreground group-hover:text-foreground")} />
-          <span className="truncate">{item.label}</span>
+          <span className="truncate">{t(item.labelKey)}</span>
           {isActive && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600" />}
         </>
       )}
@@ -149,12 +154,13 @@ function NavRow({
 }
 
 function NavSectionList({ onClick }: { onClick?: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-5">
-      {APP_NAV.map((group) => (
-        <div key={group.label}>
+      {APP_NAV_CONFIG.map((group) => (
+        <div key={group.labelKey}>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-            {group.label}
+            {t(group.labelKey)}
           </p>
           <div className="space-y-0.5">
             {group.items.map((item) => (
@@ -172,10 +178,11 @@ function NavSectionList({ onClick }: { onClick?: () => void }) {
  * ──────────────────────────────────────────────────────────────────────────── */
 function ContextChip() {
   const { business, location, subCategory } = useOnboarding();
+  const { t } = useLanguage();
   return (
     <Link
       to="/settings"
-      title="Your business profile"
+      title={t("nav.settings")}
       className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 transition-colors hover:border-emerald-300 hover:bg-emerald-50/60 sm:flex"
     >
       {business ? (
@@ -187,17 +194,31 @@ function ContextChip() {
           </span>
           <span className="h-3 w-px bg-border" />
           <span className="max-w-[8rem] truncate text-[11px] text-muted-foreground">
-            {location ? `${location.name}, ${location.district}` : "No location set"}
+            {location ? `${location.name}, ${location.district}` : t("nav.noLocationSet")}
           </span>
         </>
       ) : (
         <>
           <Store className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">No assessment yet</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("nav.noAssessmentYet")}</span>
         </>
       )}
       <ChevronRight className="h-3 w-3 text-muted-foreground" />
     </Link>
+  );
+}
+
+function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <button
+      onClick={() => setLanguage(language === "hi" ? "en" : "hi")}
+      title="Switch Language / भाषा बदलें"
+      className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100 shadow-sm"
+    >
+      <Languages className="h-3.5 w-3.5" />
+      <span>{language === "hi" ? "English" : "हिंदी"}</span>
+    </button>
   );
 }
 
@@ -206,6 +227,7 @@ function ContextChip() {
  * ──────────────────────────────────────────────────────────────────────────── */
 function UserMenu() {
   const { user, signOut } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -254,7 +276,7 @@ function UserMenu() {
               }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
-              <Settings className="h-4 w-4 text-muted-foreground" /> Profile & Settings
+              <Settings className="h-4 w-4 text-muted-foreground" /> {t("nav.settings")}
             </button>
             <button
               role="menuitem"
@@ -264,14 +286,14 @@ function UserMenu() {
               }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
-              <Home className="h-4 w-4 text-muted-foreground" /> Landing Page
+              <Home className="h-4 w-4 text-muted-foreground" /> {t("nav.landing")}
             </button>
             <button
               role="menuitem"
               onClick={handleSignOut}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
             >
-              <LogOut className="h-4 w-4" /> Sign out
+              <LogOut className="h-4 w-4" /> {t("nav.signOut")}
             </button>
           </div>
         </>
@@ -285,6 +307,7 @@ function UserMenu() {
  * ──────────────────────────────────────────────────────────────────────────── */
 function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { signOut } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { business, location, subCategory } = useOnboarding();
 
@@ -345,10 +368,10 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-bold text-foreground">
-                  {business ? business.name + (subCategory ? ` · ${subCategory.name}` : "") : "No business selected"}
+                  {business ? business.name + (subCategory ? ` · ${subCategory.name}` : "") : t("nav.noAssessmentYet")}
                 </span>
                 <span className="block truncate text-[11px] text-muted-foreground">
-                  {location ? `${location.name}, ${location.district}` : "No location set"}
+                  {location ? `${location.name}, ${location.district}` : t("nav.noLocationSet")}
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-emerald-700" />
@@ -364,7 +387,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
             className="mb-2 flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
           >
             <Sparkles className="h-4 w-4" />
-            New / Edit Assessment
+            {t("nav.newOrEditAssessment")}
           </Link>
           <div className="grid grid-cols-2 gap-1.5 text-xs font-medium">
             <button
@@ -374,7 +397,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               }}
               className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-muted-foreground hover:bg-muted"
             >
-              <Settings className="h-3.5 w-3.5" /> Settings
+              <Settings className="h-3.5 w-3.5" /> {t("nav.settings")}
             </button>
             <button
               onClick={() => {
@@ -383,14 +406,14 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               }}
               className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-muted-foreground hover:bg-muted"
             >
-              <Home className="h-3.5 w-3.5" /> Landing
+              <Home className="h-3.5 w-3.5" /> {t("nav.landing")}
             </button>
           </div>
           <button
             onClick={handleSignOut}
             className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
           >
-            <LogOut className="h-3.5 w-3.5" /> Sign out
+            <LogOut className="h-3.5 w-3.5" /> {t("nav.signOut")}
           </button>
         </div>
       </aside>
@@ -401,15 +424,16 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
 /* ────────────────────────────────────────────────────────────────────────────
  * MOBILE BOTTOM NAVIGATION
  * ──────────────────────────────────────────────────────────────────────────── */
-const BOTTOM_NAV: (NavItem | { label: string; more: true })[] = [
-  { label: "Home", to: "/dashboard", icon: LayoutDashboard, exact: true },
-  { label: "Advisor", to: "/advisor", icon: Bot },
-  { label: "Finance", to: "/finance", icon: Wallet },
-  { label: "Market", to: "/market", icon: MapPin },
-  { label: "Schemes", to: "/schemes", icon: Landmark },
+const BOTTOM_NAV_ITEMS: { labelKey: TranslationKey; to: string; icon: Icon; exact?: boolean }[] = [
+  { labelKey: "nav.home", to: "/dashboard", icon: LayoutDashboard, exact: true },
+  { labelKey: "nav.advisor", to: "/advisor", icon: Bot },
+  { labelKey: "nav.finance", to: "/finance", icon: Wallet },
+  { labelKey: "nav.market", to: "/market", icon: MapPin },
+  { labelKey: "nav.schemes", to: "/schemes", icon: Landmark },
 ];
 
 function BottomNav({ onMore }: { onMore: () => void }) {
+  const { t } = useLanguage();
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 backdrop-blur-md lg:hidden"
@@ -417,9 +441,8 @@ function BottomNav({ onMore }: { onMore: () => void }) {
       aria-label="Primary"
     >
       <div className="grid grid-cols-6">
-        {BOTTOM_NAV.map((item) => {
-          if ("more" in item) return null;
-          const Icon = item.icon!;
+        {BOTTOM_NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
           return (
             <NavLink
               key={item.to}
@@ -437,7 +460,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
                   <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", isActive && "bg-emerald-600/10")}>
                     <Icon className="h-[19px] w-[19px]" />
                   </span>
-                  {item.label}
+                  {t(item.labelKey)}
                 </>
               )}
             </NavLink>
@@ -451,7 +474,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
           <span className="flex h-7 w-12 items-center justify-center rounded-full">
             <MoreHorizontal className="h-[19px] w-[19px]" />
           </span>
-          More
+          {t("nav.more")}
         </button>
       </div>
     </nav>
@@ -462,6 +485,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
  * APP SHELL
  * ──────────────────────────────────────────────────────────────────────────── */
 export default function AppShell() {
+  const { t } = useLanguage();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
 
@@ -509,7 +533,7 @@ export default function AppShell() {
             className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 md:flex"
           >
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            Online
+            {t("nav.online")}
           </span>
 
           {/* New assessment */}
@@ -518,7 +542,7 @@ export default function AppShell() {
             className="hidden items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            New Assessment
+            {t("nav.newAssessment")}
           </Link>
 
           {/* Help → reports hub (kept small) */}
@@ -531,6 +555,9 @@ export default function AppShell() {
             <HelpCircle className="h-4 w-4" />
           </Link>
 
+          {/* Language Selector */}
+          <LanguageToggle />
+
           {/* Account */}
           <UserMenu />
         </div>
@@ -542,10 +569,10 @@ export default function AppShell() {
           <NavSectionList onClick={handleNav} />
           <div className="mt-6 border-t border-border pt-4">
             <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-              Account
+              {t("nav.group.account")}
             </p>
-            <NavRow item={{ label: "Profile & Settings", to: "/settings", icon: Settings, exact: true }} onClick={handleNav} />
-            <NavRow item={{ label: "Back to Landing", to: "/", icon: Home, exact: true }} onClick={handleNav} />
+            <NavRow item={{ labelKey: "nav.settings", to: "/settings", icon: Settings, exact: true }} onClick={handleNav} />
+            <NavRow item={{ labelKey: "nav.backToLanding", to: "/", icon: Home, exact: true }} onClick={handleNav} />
           </div>
           <div className="mt-auto pt-6">
             <Link
@@ -553,10 +580,10 @@ export default function AppShell() {
               className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700"
             >
               <Sparkles className="h-4 w-4" />
-              New / Edit Assessment
+              {t("nav.newOrEditAssessment")}
             </Link>
             <p className="mt-2 text-center text-[10px] leading-snug text-muted-foreground">
-              One analysis powers every module below.
+              {t("nav.oneAnalysisPowers")}
             </p>
           </div>
         </aside>

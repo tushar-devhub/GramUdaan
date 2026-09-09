@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { buildAdvisoryPlan, simulateEmi, type AdvisoryPlan } from "@/engine/plan";
 import { generateFeasibility } from "@/data/feasibility";
 import { formatIndianCurrency, getVerdictColor, getVerdictIcon } from "@/data/assessment";
@@ -31,17 +32,18 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const JOURNEY = [
-  { id: 0, label: "Location" },
-  { id: 1, label: "Business" },
-  { id: 2, label: "Resources" },
-  { id: 3, label: "Capital & Cost" },
-  { id: 4, label: "Funding" },
-  { id: 5, label: "Profitability" },
-  { id: 6, label: "Risk & Alternatives" },
-  { id: 7, label: "Recommendation" },
+  { id: 0, label: "Location", key: "plan.stepLocation" as const },
+  { id: 1, label: "Business", key: "plan.stepBusiness" as const },
+  { id: 2, label: "Resources", key: "plan.stepResources" as const },
+  { id: 3, label: "Capital & Cost", key: "plan.stepCapital" as const },
+  { id: 4, label: "Funding", key: "plan.stepFunding" as const },
+  { id: 5, label: "Profitability", key: "plan.stepProfitability" as const },
+  { id: 6, label: "Risk & Alternatives", key: "plan.stepRisk" as const },
+  { id: 7, label: "Recommendation", key: "plan.stepRecommendation" as const },
 ] as const;
 
 export default function Plan() {
+  const { t } = useLanguage();
   const ob = useOnboarding();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -135,16 +137,18 @@ export default function Plan() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-primary">GramUdaan Plan</p>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Step {step + 1} of 8 — {JOURNEY[step].label}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+                {t("plan.stepOf").replace("{current}", String(step + 1)).replace("{total}", "8").replace("{label}", t(JOURNEY[step].key))}
+              </h1>
             </div>
             <button
               onClick={() => navigate("/dashboard")}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
-              <X className="h-3.5 w-3.5" /> Exit
+              <X className="h-3.5 w-3.5" /> {t("plan.exit")}
           </button>
           </div>
-          <ProgressStepper steps={JOURNEY.map((s) => ({ id: s.id, label: s.label }))} currentStep={step} />
+          <ProgressStepper steps={JOURNEY.map((s) => ({ id: s.id, label: t(s.key) }))} currentStep={step} />
         </div>
 
         {/* ── STEP 0: Location & Profile ── */}
@@ -293,12 +297,15 @@ function StepLocation({ ob, onNext }: { ob: ReturnType<typeof useOnboarding>; on
     return () => { cancelled = true; };
   }, [query, pinTick]);
 
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<MapPin className="h-5 w-5" />}
-        title="Where do you want to start your business?"
-        hint="Your location shapes local demand, competition, costs and alternatives."
+        title={isHi ? "आप अपना व्यवसाय कहाँ शुरू करना चाहते हैं?" : "Where do you want to start your business?"}
+        hint={isHi ? "भारत में किसी भी गाँव, कस्बे या शहर को खोजें — हम उसके आसपास के स्थानीय बाज़ार का विश्लेषण करेंगे।" : "Your location shapes local demand, competition, costs and alternatives."}
       />
 
       <div className="relative">
@@ -307,7 +314,7 @@ function StepLocation({ ob, onNext }: { ob: ReturnType<typeof useOnboarding>; on
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by PIN code, village, town or district across India…"
+          placeholder={isHi ? "पिन कोड, गाँव, कस्बा या जिला खोजें…" : "Search by PIN code, village, town or district across India…"}
           className="w-full rounded-xl border border-border bg-white py-3 pl-10 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         {query && (
@@ -320,15 +327,15 @@ function StepLocation({ ob, onNext }: { ob: ReturnType<typeof useOnboarding>; on
 
       {isPinQuery(query.trim()) ? (
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Database className="h-3 w-3" /> Online PIN lookup
+          <Database className="h-3 w-3" /> {isHi ? "ऑनलाइन पिन कोड खोज" : "Online PIN lookup"}
         </p>
       ) : geo.status === "loading" ? (
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin text-primary" /> Loading location index…
+          <Loader2 className="h-3 w-3 animate-spin text-primary" /> {isHi ? "स्थान सूची लोड हो रही है…" : "Loading location index…"}
         </p>
       ) : geo.status === "error" ? (
         <p className="flex items-center gap-1.5 text-[11px] text-amber-600">
-          <AlertCircle className="h-3 w-3" /> Location data unavailable — demo towns are searchable.
+          <AlertCircle className="h-3 w-3" /> {isHi ? "स्थान डेटा अनुपलब्ध — केवल डेमो शहर खोजे जा सकते हैं।" : "Location data unavailable — demo towns are searchable."}
         </p>
       ) : null}
 
@@ -404,12 +411,15 @@ function StepLocation({ ob, onNext }: { ob: ReturnType<typeof useOnboarding>; on
 /* ═════════════════ STEP 1 — BUSINESS ═════════════════ */
 
 function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboarding>; onNext: () => void; onBack: () => void }) {
+  const { language, t } = useLanguage();
+  const isHi = language === "hi";
+
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search) return businessCategories.filter((b) => b.id !== "other");
     const q = search.toLowerCase();
     return businessCategories.filter(
-      (b) => b.id !== "other" && (b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)),
+      (b) => b.id !== "other" && (b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q) || (b.nameHi && b.nameHi.includes(q))),
     );
   }, [search]);
 
@@ -417,8 +427,8 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<Store className="h-5 w-5" />}
-        title="Which business are you planning?"
-        hint="Pick a category, then the exact type — it drives every downstream calculation."
+        title={isHi ? "आप कौन सा व्यवसाय शुरू करना चाहते हैं?" : "Which business are you planning?"}
+        hint={isHi ? "आप जो व्यवसाय शुरू करना चाहते हैं, उसकी सही श्रेणी चुनें।" : "Pick a category, then the exact type — it drives every downstream calculation."}
       />
 
       <div className="relative">
@@ -427,7 +437,7 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search businesses…"
+          placeholder={isHi ? "व्यवसाय खोजें…" : "Search businesses…"}
           className="w-full rounded-xl border border-border bg-white py-3 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
@@ -440,9 +450,8 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
               ob.business?.id === biz.id ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border bg-white hover:border-primary/40",
             )}>
             <span className="text-3xl mb-2">{biz.icon}</span>
-            <span className="text-sm font-semibold">{biz.name}</span>
-            <span className="text-[10px] text-primary/60 font-medium">{biz.nameHi}</span>
-            <span className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{biz.description}</span>
+            <span className="text-sm font-semibold">{isHi ? biz.nameHi : biz.name}</span>
+            <span className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{isHi ? (biz.descriptionHi || biz.description) : biz.description}</span>
           </button>
         ))}
       </div>
@@ -450,10 +459,10 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
       {ob.business && (
         <div className="rounded-xl border border-border bg-white p-4 animate-fade-in">
           <p className="text-sm font-bold mb-1">
-            {getSubCategoryGroupNameLabel(ob.business.id)}
+            {isHi ? "सटीक प्रकार चुनें" : getSubCategoryGroupNameLabel(ob.business.id)}
           </p>
           <p className="text-xs text-muted-foreground mb-3">
-            Exact type changes costs, revenue and feasibility. Select one to continue.
+            {isHi ? "सटीक प्रकार से लागत, कमाई और व्यवहार्यता का अनुमान बदलता है।" : "Exact type changes costs, revenue and feasibility. Select one to continue."}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {getSubCategoriesForBusiness(ob.business.id).map((opt) => (
@@ -464,8 +473,8 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
                 )}>
                 <span className="text-xl">{opt.icon}</span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">{opt.name}</p>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2">{opt.description}</p>
+                  <p className="text-sm font-semibold">{isHi ? opt.nameHi : opt.name}</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2">{isHi ? (opt.descriptionHi || opt.description) : opt.description}</p>
                 </div>
                 {ob.subCategory?.id === opt.id && <Check className="h-4 w-4 text-primary ml-auto" />}
               </button>
@@ -474,12 +483,12 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
 
           {ob.subCategory && ob.subCategory.questions.length > 0 && (
             <div className="mt-4 rounded-xl bg-[#F4F8EF] border border-border/60 p-4">
-              <p className="text-sm font-bold mb-1">A few quick questions</p>
-              <p className="text-xs text-muted-foreground mb-3">These fine-tune the estimate for your plan.</p>
+              <p className="text-sm font-bold mb-1">{isHi ? "कुछ छोटे सवाल" : "A few quick questions"}</p>
+              <p className="text-xs text-muted-foreground mb-3">{isHi ? "ये आपके प्लान के सटीक अनुमान में मदद करते हैं।" : "These fine-tune the estimate for your plan."}</p>
               <div className="space-y-3">
                 {ob.subCategory.questions.map((q) => (
                   <div key={q.id}>
-                    <p className="text-sm font-semibold mb-2">{q.label}</p>
+                    <p className="text-sm font-semibold mb-2">{isHi && q.labelHi ? q.labelHi : q.label}</p>
                     {q.options ? (
                       <div className="flex flex-wrap gap-2">
                         {q.options.map((o) => (
@@ -490,7 +499,7 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
                                 ? "border-primary bg-primary text-primary-foreground"
                                 : "border-border bg-white text-muted-foreground hover:border-primary/40",
                             )}>
-                            {o.label}
+                            {isHi && o.labelHi ? o.labelHi : o.label}
                           </button>
                         ))}
                       </div>
@@ -499,7 +508,7 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
                         type="text"
                         value={ob.businessAnswers[q.id] || ""}
                         onChange={(e) => ob.setBusinessAnswer(q.id, e.target.value)}
-                        placeholder={q.placeholder || q.label}
+                        placeholder={q.placeholder || (isHi && q.labelHi ? q.labelHi : q.label)}
                         className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
                     )}
@@ -513,14 +522,14 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
 
       <div className="flex gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {isHi ? "पीछे" : "Back"}
         </button>
         <button onClick={onNext} disabled={!ob.business}
           className={cn(
             "flex-1 rounded-full px-6 py-3 text-sm font-bold transition-all",
             ob.business ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground cursor-not-allowed",
           )}>
-          Continue <ArrowRight className="inline h-4 w-4 ml-1" />
+          {isHi ? "आगे बढ़ें" : "Continue"} <ArrowRight className="inline h-4 w-4 ml-1" />
         </button>
       </div>
     </div>
@@ -532,22 +541,29 @@ function StepBusiness({ ob, onNext, onBack }: { ob: ReturnType<typeof useOnboard
 function StepResources({ ob, plan, onNext, onBack }: {
   ob: ReturnType<typeof useOnboarding>; plan: AdvisoryPlan; onNext: () => void; onBack: () => void;
 }) {
+  const { t } = useLanguage();
+  const densityText = ob.feasibility?.competition.density === "high"
+    ? t("hyperlocal.densityHigh")
+    : ob.feasibility?.competition.density === "medium"
+    ? t("hyperlocal.densityMedium")
+    : t("hyperlocal.densityLow");
+
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<Building2 className="h-5 w-5" />}
-        title="What does this business need, and how does your area look?"
-        hint="Place requirement, local competition and data confidence — before money is discussed."
+        title={t("plan.step2Title")}
+        hint={t("plan.step2Hint")}
       />
 
       {/* Workspace need */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Workspace / land requirement</p>
+        <p className="text-sm font-bold mb-1">{t("plan.workspaceNeed")}</p>
         <p className="text-xs text-muted-foreground mb-3">
           {ob.subCategory
             ? <>{ob.subCategory.icon} {ob.subCategory.name} typically needs {placeTypeLabel(ob.subCategory.placeType)}.</>
             : "Select a business first — the requirement follows the business type."}
-          {" "}If you already own it, no purchase cost is added downstream.
+          {" "}{t("plan.workspaceOwnHint")}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {PLACE_STATUS_OPTIONS.map((opt) => (
@@ -566,13 +582,13 @@ function StepResources({ ob, plan, onNext, onBack }: {
         </div>
         {ob.placeStatus === "rent" && (
           <div className="mt-3">
-            <p className="text-xs font-semibold mb-1.5">Expected monthly rent (₹)?</p>
+            <p className="text-xs font-semibold mb-1.5">{t("plan.expectedRent")}</p>
             <input
               type="number"
               min={0}
               value={ob.rentMonthly || ""}
               onChange={(e) => ob.setRentMonthly(Math.max(0, Number(e.target.value) || 0))}
-              placeholder="Leave blank to use a typical estimate"
+              placeholder={t("plan.rentPlaceholder")}
               className="w-full sm:w-64 rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none"
             />
           </div>
@@ -581,8 +597,8 @@ function StepResources({ ob, plan, onNext, onBack }: {
 
       {/* Scale */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Starting scale</p>
-        <p className="text-xs text-muted-foreground mb-3">Smaller scale = lower investment & risk; larger scale = more capacity and revenue.</p>
+        <p className="text-sm font-bold mb-1">{t("plan.startingScale")}</p>
+        <p className="text-xs text-muted-foreground mb-3">{t("plan.scaleHint")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {SCALE_OPTIONS.map((s) => (
             <button key={s.value} onClick={() => ob.setScaleChoice(s.value)}
@@ -600,11 +616,11 @@ function StepResources({ ob, plan, onNext, onBack }: {
       {/* Local market context */}
       {ob.feasibility && (
         <div className="rounded-xl border border-border bg-white p-4">
-          <p className="text-sm font-bold mb-1">Local market — {ob.location?.name}</p>
+          <p className="text-sm font-bold mb-1">{t("plan.localMarket").replace("{location}", ob.location?.name || "")}</p>
           <div className="grid grid-cols-3 gap-2 my-3">
-            <MiniStat label="Households" value={ob.feasibility.marketReach.households.toLocaleString("en-IN")} />
-            <MiniStat label="Potential customers" value={ob.feasibility.marketReach.potentialCustomers.toLocaleString("en-IN")} />
-            <MiniStat label="Nearby villages" value={String(ob.feasibility.marketReach.nearbyVillages)} />
+            <MiniStat label={t("plan.households")} value={ob.feasibility.marketReach.households.toLocaleString("en-IN")} />
+            <MiniStat label={t("plan.potentialCustomers")} value={ob.feasibility.marketReach.potentialCustomers.toLocaleString("en-IN")} />
+            <MiniStat label={t("plan.nearbyVillages")} value={String(ob.feasibility.marketReach.nearbyVillages)} />
           </div>
           <div className={cn(
             "rounded-lg p-3 mb-2",
@@ -612,7 +628,7 @@ function StepResources({ ob, plan, onNext, onBack }: {
               : ob.feasibility.competition.density === "medium" ? "bg-amber-50 border border-amber-200"
               : "bg-red-50 border border-red-200",
           )}>
-            <p className="text-xs font-bold capitalize">{ob.feasibility.competition.density} competition</p>
+            <p className="text-xs font-bold capitalize">{t("plan.competitionDensity").replace("{density}", densityText)}</p>
             <p className="text-[11px] text-muted-foreground">{ob.feasibility.competition.summary}</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -623,7 +639,7 @@ function StepResources({ ob, plan, onNext, onBack }: {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Live local availability (shops/land listings) is currently unavailable — figures are regional estimates. Verify locally.
+            {t("plan.liveAvailabilityNote")}
           </p>
         </div>
       )}
@@ -636,17 +652,17 @@ function StepResources({ ob, plan, onNext, onBack }: {
           className="w-full rounded-xl border-2 border-dashed border-primary/40 p-4 text-center hover:bg-primary/5 transition-all"
         >
           <Sparkles className="h-5 w-5 text-primary mx-auto mb-1" />
-          <span className="text-sm font-semibold text-primary">Run local market analysis for this location</span>
+          <span className="text-sm font-semibold text-primary">{t("plan.runAnalysisPrompt")}</span>
         </button>
       )}
 
       <div className="flex gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {t("plan.back")}
         </button>
         <button onClick={onNext}
           className="flex-1 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90">
-          Continue to Capital & Cost <ArrowRight className="inline h-4 w-4 ml-1" />
+          {t("plan.continueCapital")} <ArrowRight className="inline h-4 w-4 ml-1" />
         </button>
       </div>
     </div>
@@ -658,18 +674,30 @@ function StepResources({ ob, plan, onNext, onBack }: {
 function StepCapital({ ob, plan, onNext, onBack }: {
   ob: ReturnType<typeof useOnboarding>; plan: AdvisoryPlan; onNext: () => void; onBack: () => void;
 }) {
+  const { t, language } = useLanguage();
+  const isHi = language === "hi";
+
+  const chartComponents = useMemo(() => {
+    return plan.cost.components
+      .filter((c) => c.amount > 0)
+      .map((c) => ({
+        ...c,
+        displayLabel: isHi ? (c.labelHi || c.label) : c.label,
+      }));
+  }, [plan.cost.components, isHi]);
+
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<IndianRupee className="h-5 w-5" />}
-        title="How much do you have, and what will the business cost?"
-        hint="Your capital vs the total project cost — with a full breakdown."
+        title={t("plan.step3Title")}
+        hint={t("plan.step3Hint")}
       />
 
       {/* USER_CAPITAL */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Your Capital — money you can invest from your own pocket</p>
-        <p className="text-xs text-muted-foreground mb-3">हिंदी: आप अपनी तरफ से कितना पैसा invest कर सकते हैं?</p>
+        <p className="text-sm font-bold mb-1">{t("plan.userCapitalTitle")}</p>
+        <p className="text-xs text-muted-foreground mb-3">{t("plan.userCapitalHiHint")}</p>
         <CurrencyInput value={ob.capital} onChange={ob.setCapital} />
         <div className="flex gap-2 mt-3">
           {[50000, 100000, 200000, 500000].map((v) => (
@@ -686,36 +714,36 @@ function StepCapital({ ob, plan, onNext, onBack }: {
 
       {/* TARGET_INVESTMENT */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Target Investment — how much you're planning to invest</p>
+        <p className="text-sm font-bold mb-1">{t("plan.targetInvTitle")}</p>
         <p className="text-xs text-muted-foreground mb-3">
-          Optional. This is your goal — it can be higher or lower than your capital. It never feeds the funding-gap math; the gap always uses actual available funding.
+          {t("plan.targetInvHint")}
         </p>
         <CurrencyInput value={ob.targetInvestment} onChange={ob.setTargetInvestment} />
         {ob.targetInvestment > 0 && plan.cost.totalProjectCost > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
             {ob.targetInvestment >= plan.cost.totalProjectCost
-              ? `Your target covers the estimated project cost (${formatIndianCurrency(plan.cost.totalProjectCost)}).`
-              : `Your target is ${formatIndianCurrency(plan.cost.totalProjectCost - ob.targetInvestment)} below the estimated project cost — the extra would need funding or a smaller scale.`}
+              ? t("plan.targetCovers").replace("{cost}", formatIndianCurrency(plan.cost.totalProjectCost))
+              : t("plan.targetBelow").replace("{diff}", formatIndianCurrency(plan.cost.totalProjectCost - ob.targetInvestment))}
           </p>
         )}
       </div>
 
       {/* Setup vs working capital + total */}
       <div className="rounded-xl border-2 border-primary/30 bg-primary/[0.03] p-4">
-        <p className="text-sm font-bold mb-3">Estimated Total Project Cost</p>
+        <p className="text-sm font-bold mb-3">{t("plan.estTotalProjectCost")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-          <Metric label="Initial setup cost" value={formatIndianCurrency(plan.cost.setupCost)} />
-          <Metric label={`Initial working capital (~${plan.cost.workingCapitalMonths} mo)`} value={formatIndianCurrency(plan.cost.workingCapital)} />
-          <Metric label="TOTAL PROJECT COST" value={formatIndianCurrency(plan.cost.totalProjectCost)} highlight />
+          <Metric label={t("plan.initialSetupCost")} value={formatIndianCurrency(plan.cost.setupCost)} />
+          <Metric label={t("plan.initialWorkingCapital").replace("{months}", String(plan.cost.workingCapitalMonths))} value={formatIndianCurrency(plan.cost.workingCapital)} />
+          <Metric label={t("plan.totalProjectCostMetric")} value={formatIndianCurrency(plan.cost.totalProjectCost)} highlight />
         </div>
 
         {/* Breakdown chart — actual calculated values */}
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={plan.cost.components.filter((c) => c.amount > 0)} layout="vertical" margin={{ left: 8, right: 16 }}>
+            <BarChart data={chartComponents} layout="vertical" margin={{ left: 8, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
               <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
-              <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
+              <YAxis type="category" dataKey="displayLabel" width={130} tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
               <RTooltip formatter={(v: number) => formatIndianCurrency(v)} />
               <Bar dataKey="amount" fill="var(--primary)" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -723,9 +751,9 @@ function StepCapital({ ob, plan, onNext, onBack }: {
         </div>
 
         <div className="mt-3 space-y-1">
-          {plan.cost.components.filter((c) => c.amount > 0).map((c) => (
+          {chartComponents.map((c) => (
             <div key={c.id} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{c.label} <span className="text-[9px] uppercase">({c.source.toLowerCase()})</span></span>
+              <span className="text-muted-foreground">{c.displayLabel} <span className="text-[9px] uppercase">({c.source === "benchmark" ? (isHi ? "मानक" : "benchmark") : (isHi ? "इनपुट" : c.source.toLowerCase())})</span></span>
               <span className="font-semibold">{formatIndianCurrency(c.amount)}</span>
             </div>
           ))}
@@ -737,20 +765,20 @@ function StepCapital({ ob, plan, onNext, onBack }: {
 
       {/* Capital + other funding vs project cost */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Your funding vs Total Project Cost</p>
-        <p className="text-xs text-muted-foreground mb-3">Your capital plus any other funding, compared against the estimated total cost.</p>
+        <p className="text-sm font-bold mb-1">{t("plan.fundingVsCostTitle")}</p>
+        <p className="text-xs text-muted-foreground mb-3">{t("plan.fundingVsCostHint")}</p>
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={[
                 ...(plan.funding.otherFunding > 0
-                  ? [{ name: "Other funding", value: plan.funding.otherFunding }]
+                  ? [{ name: t("plan.otherFunding"), value: plan.funding.otherFunding }]
                   : []),
-                { name: "Your Capital", value: plan.funding.userCapital },
+                { name: t("plan.yourCapital"), value: plan.funding.userCapital },
                 ...(plan.funding.fundingGap > 0
-                  ? [{ name: "Funding gap", value: plan.funding.fundingGap }]
+                  ? [{ name: t("plan.fundingGap"), value: plan.funding.fundingGap }]
                   : []),
-                { name: "Total Project Cost", value: plan.cost.totalProjectCost },
+                { name: t("plan.totalProjectCost"), value: plan.cost.totalProjectCost },
               ]}
               layout="vertical"
             >
@@ -760,13 +788,13 @@ function StepCapital({ ob, plan, onNext, onBack }: {
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22}>
                 {([
                   ...(plan.funding.otherFunding > 0
-                    ? [{ name: "Other funding", value: plan.funding.otherFunding, fill: "#8b5cf6" }]
+                    ? [{ name: t("plan.otherFunding"), value: plan.funding.otherFunding, fill: "#8b5cf6" }]
                     : []),
-                  { name: "Your Capital", value: plan.funding.userCapital, fill: "var(--primary)" },
+                  { name: t("plan.yourCapital"), value: plan.funding.userCapital, fill: "var(--primary)" },
                   ...(plan.funding.fundingGap > 0
-                    ? [{ name: "Funding gap", value: plan.funding.fundingGap, fill: "#f59e0b" }]
+                    ? [{ name: t("plan.fundingGap"), value: plan.funding.fundingGap, fill: "#f59e0b" }]
                     : []),
-                  { name: "Total Project Cost", value: plan.cost.totalProjectCost, fill: "#94a3b8" },
+                  { name: t("plan.totalProjectCost"), value: plan.cost.totalProjectCost, fill: "#94a3b8" },
                 ]).map((entry) => (
                   <Cell key={entry.name} fill={entry.fill} />
                 ))}
@@ -775,29 +803,29 @@ function StepCapital({ ob, plan, onNext, onBack }: {
           </ResponsiveContainer>
         </div>
         <div className="mt-2 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Coverage</span>
+          <span className="text-muted-foreground">{t("plan.coverage")}</span>
           <span className="font-bold">
             {plan.cost.totalProjectCost > 0 ? Math.round((plan.funding.totalAvailableFunding / plan.cost.totalProjectCost) * 100) : 100}%
-            <span className="text-xs text-muted-foreground font-medium"> of estimated project cost covered by your funding</span>
+            <span className="text-xs text-muted-foreground font-medium"> {t("plan.coverageHint")}</span>
           </span>
         </div>
         {plan.funding.fundingGap > 0 && (
           <p className="mt-1 text-xs text-amber-700">
-            Funding gap of {formatIndianCurrency(plan.funding.fundingGap)} — you'll plan how to cover it on the next step.
+            {t("plan.fundingGapPrompt").replace("{gap}", formatIndianCurrency(plan.funding.fundingGap))}
           </p>
         )}
       </div>
 
       <div className="flex gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {t("plan.back")}
         </button>
         <button onClick={onNext} disabled={ob.capital <= 0}
           className={cn(
             "flex-1 rounded-full px-6 py-3 text-sm font-bold transition-all",
             ob.capital > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted text-muted-foreground cursor-not-allowed",
           )}>
-          Continue to Funding <ArrowRight className="inline h-4 w-4 ml-1" />
+          {t("plan.continueFunding")} <ArrowRight className="inline h-4 w-4 ml-1" />
         </button>
       </div>
     </div>
@@ -817,44 +845,49 @@ function StepFunding({
   loanSimDefaults: { amount: number; rate: number; tenure: number };
   onNext: () => void; onBack: () => void;
 }) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
+  const fundingData = useMemo(() => [
+    { name: isHi ? "उपलब्ध राशि" : "Available", value: plan.funding.totalAvailableFunding },
+    { name: isHi ? "फंडिंग अंतर" : "Gap", value: plan.funding.fundingGap },
+    { name: isHi ? "कुल लागत" : "Total cost", value: plan.cost.totalProjectCost },
+  ], [isHi, plan.funding.totalAvailableFunding, plan.funding.fundingGap, plan.cost.totalProjectCost]);
+
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<Landmark className="h-5 w-5" />}
-        title="How much do you need to arrange or borrow?"
-        hint="Available funding → funding gap → required vs recommended loan → EMI → repayment pressure."
+        title={isHi ? "आपको कितनी राशि की व्यवस्था या ऋण लेने की आवश्यकता है?" : "How much do you need to arrange or borrow?"}
+        hint={isHi ? "उपलब्ध फंडिंग → फंडिंग अंतर → आवश्यक बनाम अनुशंसित ऋण → ईएमआई → पुनर्भुगतान दबाव।" : "Available funding → funding gap → required vs recommended loan → EMI → repayment pressure."}
       />
 
       {/* Other funding */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Other funding — family, partner, grants, savings</p>
-        <p className="text-xs text-muted-foreground mb-3">Any legitimate money beyond your own capital. Reduces the funding gap directly.</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "अन्य फंडिंग — परिवार, साझेदार, अनुदान, बचत" : "Other funding — family, partner, grants, savings"}</p>
+        <p className="text-xs text-muted-foreground mb-3">{isHi ? "आपकी स्वयं की पूंजी के अतिरिक्त कोई भी वैध राशि। यह सीधे फंडिंग अंतर को कम करती है।" : "Any legitimate money beyond your own capital. Reduces the funding gap directly."}</p>
         <CurrencyInput value={ob.otherFunding} onChange={ob.setOtherFunding} />
       </div>
 
       {/* Funding chain */}
       <div className="rounded-xl border-2 border-primary/30 bg-primary/[0.03] p-4">
-        <p className="text-sm font-bold mb-3">Funding picture</p>
+        <p className="text-sm font-bold mb-3">{isHi ? "फंडिंग की स्थिति" : "Funding picture"}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-          <Metric label="Total project cost" value={formatIndianCurrency(plan.funding.totalProjectCost)} />
-          <Metric label="Your capital" value={formatIndianCurrency(plan.funding.userCapital)} />
-          <Metric label="Other funding" value={formatIndianCurrency(plan.funding.otherFunding)} />
-          <Metric label="Total available funding" value={formatIndianCurrency(plan.funding.totalAvailableFunding)} />
-          <Metric label="FUNDING GAP" value={formatIndianCurrency(plan.funding.fundingGap)} highlight />
-          <Metric label="Estimated loan requirement" value={formatIndianCurrency(plan.funding.loanRequired)} highlight />
+          <Metric label={isHi ? "कुल परियोजना लागत" : "Total project cost"} value={formatIndianCurrency(plan.funding.totalProjectCost)} />
+          <Metric label={isHi ? "आपकी पूंजी" : "Your capital"} value={formatIndianCurrency(plan.funding.userCapital)} />
+          <Metric label={isHi ? "अन्य फंडिंग" : "Other funding"} value={formatIndianCurrency(plan.funding.otherFunding)} />
+          <Metric label={isHi ? "कुल उपलब्ध फंडिंग" : "Total available funding"} value={formatIndianCurrency(plan.funding.totalAvailableFunding)} />
+          <Metric label={isHi ? "फंडिंग अंतर" : "FUNDING GAP"} value={formatIndianCurrency(plan.funding.fundingGap)} highlight />
+          <Metric label={isHi ? "अनुमानित ऋण आवश्यकता" : "Estimated loan requirement"} value={formatIndianCurrency(plan.funding.loanRequired)} highlight />
         </div>
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={[
-                { name: "Available", value: plan.funding.totalAvailableFunding },
-                { name: "Gap", value: plan.funding.fundingGap },
-                { name: "Total cost", value: plan.cost.totalProjectCost },
-              ]}
+              data={fundingData}
               layout="vertical"
             >
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <RTooltip formatter={(v: number) => formatIndianCurrency(v)} />
               <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} barSize={24} />
             </BarChart>
@@ -864,11 +897,11 @@ function StepFunding({
 
       {/* Required vs recommended */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Required loan vs recommended borrowing</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "आवश्यक ऋण बनाम अनुशंसित ऋण" : "Required loan vs recommended borrowing"}</p>
         <p className="text-xs text-muted-foreground mb-3">{plan.funding.recommendationNote}</p>
         <div className="grid grid-cols-2 gap-3">
-          <Metric label="Required (fills the whole gap)" value={formatIndianCurrency(plan.funding.loanRequired)} />
-          <Metric label="Recommended (keeps ~1 month ops buffer)" value={formatIndianCurrency(plan.funding.recommendedLoan)} highlight />
+          <Metric label={isHi ? "आवश्यक (पूरा अंतर भरता है)" : "Required (fills the whole gap)"} value={formatIndianCurrency(plan.funding.loanRequired)} />
+          <Metric label={isHi ? "अनुशंसित (1 माह का बफ़र रखता है)" : "Recommended (keeps ~1 month ops buffer)"} value={formatIndianCurrency(plan.funding.recommendedLoan)} highlight />
         </div>
       </div>
 
@@ -876,20 +909,20 @@ function StepFunding({
       {plan.funding.loanRequired > 0 && (
         <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-bold">Loan simulator — all values are estimates</p>
+            <p className="text-sm font-bold">{isHi ? "ऋण सिम्युलेटर — सभी मान अनुमानित हैं" : "Loan simulator — all values are estimates"}</p>
             {loanSim && (
               <button onClick={() => setLoanSim(null)}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                <RotateCcw className="h-3 w-3" /> Reset to estimate
+                <RotateCcw className="h-3 w-3" /> {isHi ? "अनुमान पर रीसेट करें" : "Reset to estimate"}
               </button>
             )}
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            Try different amounts, interest rates and tenures. Nothing is guaranteed — banks decide final terms.
+            {isHi ? "विभिन्न राशि, ब्याज दर और अवधि आज़माएं। बैंक अंतिम शर्तें तय करते हैं।" : "Try different amounts, interest rates and tenures. Nothing is guaranteed — banks decide final terms."}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1">Loan amount (₹)</label>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "ऋण राशि (₹)" : "Loan amount (₹)"}</label>
               <input type="number" min={0} value={loanSim?.amount ?? loanSimDefaults.amount}
                 onChange={(e) => setLoanSim({
                   amount: Math.max(0, Number(e.target.value) || 0),
@@ -899,7 +932,7 @@ function StepFunding({
                 className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1">Interest rate (%/yr)</label>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "ब्याज दर (%/वर्ष)" : "Interest rate (%/yr)"}</label>
               <input type="number" min={0} max={30} step={0.5} value={loanSim?.rate ?? loanSimDefaults.rate}
                 onChange={(e) => setLoanSim({
                   amount: loanSim?.amount ?? loanSimDefaults.amount,
@@ -909,7 +942,7 @@ function StepFunding({
                 className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-1">Tenure (years)</label>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "अवधि (वर्ष)" : "Tenure (years)"}</label>
               <input type="number" min={1} max={15} value={loanSim?.tenure ?? loanSimDefaults.tenure}
                 onChange={(e) => setLoanSim({
                   amount: loanSim?.amount ?? loanSimDefaults.amount,
@@ -921,9 +954,9 @@ function StepFunding({
           </div>
           {sim && (
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <Metric label="Estimated EMI" value={formatIndianCurrency(sim.emi)} highlight />
-              <Metric label="Total interest" value={formatIndianCurrency(sim.totalInterest)} />
-              <Metric label="Total repayment" value={formatIndianCurrency(sim.totalRepayment)} />
+              <Metric label={isHi ? "अनुमानित ईएमआई" : "Estimated EMI"} value={formatIndianCurrency(sim.emi)} highlight />
+              <Metric label={isHi ? "कुल ब्याज" : "Total interest"} value={formatIndianCurrency(sim.totalInterest)} />
+              <Metric label={isHi ? "कुल पुनर्भुगतान" : "Total repayment"} value={formatIndianCurrency(sim.totalRepayment)} />
             </div>
           )}
         </div>
@@ -931,29 +964,31 @@ function StepFunding({
 
       {/* EMI stress test */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">EMI stress test</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "ईएमआई तनाव परीक्षण" : "EMI stress test"}</p>
         <div className={cn(
           "rounded-lg p-3 mb-2",
           plan.emiStress.level === "low" ? "bg-emerald-50 border border-emerald-200"
             : plan.emiStress.level === "medium" ? "bg-amber-50 border border-amber-200"
             : "bg-red-50 border border-red-200",
         )}>
-          <p className="text-sm font-bold">{stressIcon(plan.emiStress.level)} {plan.emiStress.label}</p>
+          <p className="text-sm font-bold">
+            {stressIcon(plan.emiStress.level)} {isHi ? (plan.emiStress.level === "low" ? "कम तनाव (सुरक्षित)" : plan.emiStress.level === "medium" ? "मध्यम तनाव" : "उच्च तनाव") : plan.emiStress.label}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">{plan.emiStress.explanation}</p>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <Metric label="Operating profit" value={formatIndianCurrency(plan.emiStress.operatingProfit)} />
-          <Metric label="Estimated EMI" value={formatIndianCurrency(plan.emiStress.emi)} />
-          <Metric label="EMI / profit" value={plan.emiStress.ratio !== null ? `${Math.round(plan.emiStress.ratio * 100)}%` : "—"} />
+          <Metric label={isHi ? "परिचालन मुनाफ़ा" : "Operating profit"} value={formatIndianCurrency(plan.emiStress.operatingProfit)} />
+          <Metric label={isHi ? "अनुमानित ईएमआई" : "Estimated EMI"} value={formatIndianCurrency(plan.emiStress.emi)} />
+          <Metric label={isHi ? "ईएमआई / मुनाफ़ा अनुपात" : "EMI / profit"} value={plan.emiStress.ratio !== null ? `${Math.round(plan.emiStress.ratio * 100)}%` : "—"} />
         </div>
       </div>
 
       {/* Scheme matching */}
       {schemeResult && schemeResult.matches.length > 0 && (
         <div className="rounded-xl border border-border bg-white p-4">
-          <p className="text-sm font-bold mb-1">Financing options that may be relevant</p>
+          <p className="text-sm font-bold mb-1">{isHi ? "प्रासंगिक सरकारी एवं वित्तीय योजनाएं" : "Financing options that may be relevant"}</p>
           <p className="text-xs text-muted-foreground mb-3">
-            Preliminary matches based on your business, location and funding need. Eligibility is never guaranteed — verify with the official source.
+            {isHi ? "आपके व्यवसाय, स्थान और आवश्यकता के आधार पर प्रारंभिक मिलान। आधिकारिक स्रोत से पुष्टि करें।" : "Preliminary matches based on your business, location and funding need. Eligibility is never guaranteed — verify with the official source."}
           </p>
           <div className="space-y-2">
             {schemeResult.matches.slice(0, 3).map((m) => (
@@ -966,7 +1001,7 @@ function StepFunding({
                       : m.level === "possible" ? "bg-amber-50 text-amber-700 border-amber-200"
                       : "bg-muted text-muted-foreground border-border",
                   )}>
-                    {m.level === "high" ? "HIGH MATCH" : m.level === "possible" ? "POSSIBLE" : "LOW"}
+                    {m.level === "high" ? (isHi ? "उच्च मिलान" : "HIGH MATCH") : m.level === "possible" ? (isHi ? "संभावित" : "POSSIBLE") : (isHi ? "सामान्य" : "LOW")}
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">{m.scheme.shortDescription}</p>
@@ -981,11 +1016,11 @@ function StepFunding({
 
       <div className="flex gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {isHi ? "पीछे" : "Back"}
         </button>
         <button onClick={onNext}
           className="flex-1 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90">
-          Continue to Profitability <ArrowRight className="inline h-4 w-4 ml-1" />
+          {isHi ? "मुनाफ़ा विश्लेषण पर आगे बढ़ें" : "Continue to Profitability"} <ArrowRight className="inline h-4 w-4 ml-1" />
         </button>
       </div>
     </div>
@@ -997,42 +1032,49 @@ function StepFunding({
 function StepProfitability({ ob, plan, onNext, onBack }: {
   ob: ReturnType<typeof useOnboarding>; plan: AdvisoryPlan; onNext: () => void; onBack: () => void;
 }) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
+  const revKey = isHi ? "बिक्री" : "Revenue";
+  const expKey = isHi ? "खर्च" : "Expenses";
+  const profKey = isHi ? "मुनाफ़ा" : "Profit";
+
   const projectionData = plan.projection.map((p) => ({
-    label: p.label,
-    Revenue: p.revenue,
-    Expenses: p.expenses,
-    Profit: p.profit,
+    label: isHi ? p.label.replace("M", "माह ") : p.label,
+    [revKey]: p.revenue,
+    [expKey]: p.expenses,
+    [profKey]: p.profit,
   }));
 
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<TrendingUp className="h-5 w-5" />}
-        title="What can you earn, spend, and keep?"
-        hint="Revenue → expenses → operating profit → EMI → cash after EMI → 12-month projection → break-even."
+        title={isHi ? "आप कितना कमा सकते हैं, खर्च कर सकते हैं और बचा सकते हैं?" : "What can you earn, spend, and keep?"}
+        hint={isHi ? "बिक्री → खर्च → परिचालन मुनाफ़ा → ईएमआई → ईएमआई के बाद नकद → 12 महीने का अनुमान → ब्रेक-ईवन" : "Revenue → expenses → operating profit → EMI → cash after EMI → 12-month projection → break-even."}
       />
 
       {/* Revenue & expenses */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Metric label="Monthly revenue (est.)" value={formatIndianCurrency(plan.operating.monthlyRevenue)} />
-        <Metric label="Fixed expenses" value={formatIndianCurrency(plan.operating.monthlyFixedCosts)} />
-        <Metric label="Variable expenses" value={formatIndianCurrency(plan.operating.monthlyVariableCosts)} />
-        <Metric label="Total expenses" value={formatIndianCurrency(plan.operating.monthlyExpenses)} />
+        <Metric label={isHi ? "मासिक बिक्री (अनुमानित)" : "Monthly revenue (est.)"} value={formatIndianCurrency(plan.operating.monthlyRevenue)} />
+        <Metric label={isHi ? "स्थिर खर्च" : "Fixed expenses"} value={formatIndianCurrency(plan.operating.monthlyFixedCosts)} />
+        <Metric label={isHi ? "परिवर्तनशील खर्च" : "Variable expenses"} value={formatIndianCurrency(plan.operating.monthlyVariableCosts)} />
+        <Metric label={isHi ? "कुल खर्च" : "Total expenses"} value={formatIndianCurrency(plan.operating.monthlyExpenses)} />
       </div>
 
       {/* Profit chain */}
       <div className="rounded-xl border-2 border-primary/30 bg-primary/[0.03] p-4">
-        <p className="text-sm font-bold mb-3">Monthly profit chain</p>
+        <p className="text-sm font-bold mb-3">{isHi ? "मासिक मुनाफ़ा श्रृंखला" : "Monthly profit chain"}</p>
         <div className="space-y-2">
-          <FlowRow label="Monthly revenue" value={formatIndianCurrency(plan.operating.monthlyRevenue)} tone="pos" />
-          <FlowRow label="− Operating expenses" value={formatIndianCurrency(plan.operating.monthlyExpenses)} tone="neg" />
-          <FlowRow label="= Operating profit" value={formatIndianCurrency(plan.operating.operatingProfit)} tone="neutral" bold />
-          <FlowRow label="− Estimated EMI" value={formatIndianCurrency(plan.emiStress.emi)} tone="neg" />
-          <FlowRow label="= Cash available after EMI" value={formatIndianCurrency(plan.profitAfterEmi)} tone={plan.profitAfterEmi >= 0 ? "pos" : "neg"} bold />
+          <FlowRow label={isHi ? "मासिक बिक्री" : "Monthly revenue"} value={formatIndianCurrency(plan.operating.monthlyRevenue)} tone="pos" />
+          <FlowRow label={isHi ? "− परिचालन खर्च" : "− Operating expenses"} value={formatIndianCurrency(plan.operating.monthlyExpenses)} tone="neg" />
+          <FlowRow label={isHi ? "= परिचालन मुनाफ़ा" : "= Operating profit"} value={formatIndianCurrency(plan.operating.operatingProfit)} tone="neutral" bold />
+          <FlowRow label={isHi ? "− अनुमानित ईएमआई" : "− Estimated EMI"} value={formatIndianCurrency(plan.emiStress.emi)} tone="neg" />
+          <FlowRow label={isHi ? "= ईएमआई के बाद उपलब्ध नकद" : "= Cash available after EMI"} value={formatIndianCurrency(plan.profitAfterEmi)} tone={plan.profitAfterEmi >= 0 ? "pos" : "neg"} bold />
         </div>
         {plan.cashFlowWarning && (
           <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3">
-            <p className="text-xs font-bold text-red-700">⚠️ Cash-flow warning</p>
+            <p className="text-xs font-bold text-red-700">{isHi ? "⚠️ नकदी प्रवाह चेतावनी" : "⚠️ Cash-flow warning"}</p>
             <p className="text-xs text-red-600 mt-0.5">{plan.cashFlowWarning}</p>
           </div>
         )}
@@ -1040,9 +1082,9 @@ function StepProfitability({ ob, plan, onNext, onBack }: {
 
       {/* 12-month projection chart */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">12-month projection</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "12 महीने का वित्तीय अनुमान" : "12-month projection"}</p>
         <p className="text-xs text-muted-foreground mb-3">
-          Revenue ramps up over ~{plan.projection.length > 0 ? plan.projection[0].label : "M1"}–M{plan.projection.length} as customers build. All values are estimates.
+          {isHi ? "जैसे-जैसे ग्राहक जुड़ते हैं, बिक्री बढ़ती है। सभी मान अनुमानित हैं।" : `Revenue ramps up over ~${plan.projection.length > 0 ? plan.projection[0].label : "M1"}–M${plan.projection.length} as customers build. All values are estimates.`}
         </p>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -1052,9 +1094,9 @@ function StepProfitability({ ob, plan, onNext, onBack }: {
               <YAxis tickFormatter={compact} tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" />
               <RTooltip formatter={(v: number) => formatIndianCurrency(v)} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="Revenue" stroke="#10b981" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Expenses" stroke="#f59e0b" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Profit" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={revKey} stroke="#10b981" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={expKey} stroke="#f59e0b" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={profKey} stroke="#3b82f6" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -1062,20 +1104,27 @@ function StepProfitability({ ob, plan, onNext, onBack }: {
 
       {/* Break-even */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Break-even</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "ब्रेक-ईवन विश्लेषण" : "Break-even"}</p>
         <p className="text-xs text-muted-foreground mb-3">{plan.breakEven.explanation}</p>
         <div className="grid grid-cols-3 gap-2">
-          <Metric label="Operating break-even" value={plan.breakEven.operatingBreakEvenMonth ? `~Month ${plan.breakEven.operatingBreakEvenMonth}` : "12+ months"} />
-          <Metric label="Break-even sales / month" value={formatIndianCurrency(plan.breakEven.operatingBreakEvenSales)} />
-          <Metric label="Investment payback" value={plan.breakEven.investmentPaybackMonths ? `~${plan.breakEven.investmentPaybackMonths} months` : "3+ years"} highlight />
+          <Metric
+            label={isHi ? "परिचालन ब्रेक-ईवन" : "Operating break-even"}
+            value={plan.breakEven.operatingBreakEvenMonth ? (isHi ? `~माह ${plan.breakEven.operatingBreakEvenMonth}` : `~Month ${plan.breakEven.operatingBreakEvenMonth}`) : (isHi ? "12+ महीने" : "12+ months")}
+          />
+          <Metric label={isHi ? "ब्रेक-ईवन बिक्री / माह" : "Break-even sales / month"} value={formatIndianCurrency(plan.breakEven.operatingBreakEvenSales)} />
+          <Metric
+            label={isHi ? "पूंजी वापसी (पेबैक)" : "Investment payback"}
+            value={plan.breakEven.investmentPaybackMonths ? (isHi ? `~${plan.breakEven.investmentPaybackMonths} महीने` : `~${plan.breakEven.investmentPaybackMonths} months`) : (isHi ? "3+ वर्ष" : "3+ years")}
+            highlight
+          />
         </div>
       </div>
 
       {/* Scenarios */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Scenario analysis</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "परिदृश्य विश्लेषण" : "Scenario analysis"}</p>
         <p className="text-xs text-muted-foreground mb-3">
-          The optimistic case is possible, not guaranteed. Plan around the conservative case.
+          {isHi ? "आशावादी स्थिति संभव है, पर गारंटीकृत नहीं। सुरक्षित स्थिति को ध्यान में रखकर योजना बनाएं।" : "The optimistic case is possible, not guaranteed. Plan around the conservative case."}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {plan.scenarios.map((s) => (
@@ -1085,13 +1134,13 @@ function StepProfitability({ ob, plan, onNext, onBack }: {
                 : s.id === "expected" ? "border-primary/30 bg-primary/[0.03]"
                 : "border-emerald-200 bg-emerald-50/50",
             )}>
-              <p className="text-xs font-bold">{s.label} <span className="text-muted-foreground font-medium">({s.labelHi})</span></p>
+              <p className="text-xs font-bold">{isHi ? s.labelHi : s.label}</p>
               <div className="mt-2 space-y-1 text-[11px]">
-                <div className="flex justify-between"><span className="text-muted-foreground">Revenue</span><span className="font-semibold">{formatIndianCurrency(s.monthlyRevenue)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Expenses</span><span className="font-semibold">{formatIndianCurrency(s.monthlyExpenses)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Profit</span><span className={cn("font-semibold", s.monthlyProfit >= 0 ? "text-emerald-600" : "text-red-600")}>{formatIndianCurrency(s.monthlyProfit)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">After EMI</span><span className={cn("font-semibold", s.profitAfterEmi >= 0 ? "text-emerald-600" : "text-red-600")}>{formatIndianCurrency(s.profitAfterEmi)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Payback</span><span className="font-semibold">{s.paybackMonths ? `~${s.paybackMonths} mo` : "3+ yrs"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isHi ? "बिक्री" : "Revenue"}</span><span className="font-semibold">{formatIndianCurrency(s.monthlyRevenue)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isHi ? "खर्च" : "Expenses"}</span><span className="font-semibold">{formatIndianCurrency(s.monthlyExpenses)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isHi ? "मुनाफ़ा" : "Profit"}</span><span className={cn("font-semibold", s.monthlyProfit >= 0 ? "text-emerald-600" : "text-red-600")}>{formatIndianCurrency(s.monthlyProfit)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isHi ? "ईएमआई बाद" : "After EMI"}</span><span className={cn("font-semibold", s.profitAfterEmi >= 0 ? "text-emerald-600" : "text-red-600")}>{formatIndianCurrency(s.profitAfterEmi)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isHi ? "पेबैक" : "Payback"}</span><span className="font-semibold">{s.paybackMonths ? (isHi ? `~${s.paybackMonths} माह` : `~${s.paybackMonths} mo`) : (isHi ? "3+ वर्ष" : "3+ yrs")}</span></div>
               </div>
               <p className="mt-2 text-[10px] text-muted-foreground">{s.note}</p>
             </div>
@@ -1120,6 +1169,9 @@ function StepProfitability({ ob, plan, onNext, onBack }: {
 function StepRisk({ ob, plan, onNext, onBack }: {
   ob: ReturnType<typeof useOnboarding>; plan: AdvisoryPlan; onNext: () => void; onBack: () => void;
 }) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
   const comparison = useMemo(() => {
     const alts = ob.feasibility?.alternatives ?? [];
     const altRows = alts.map((a) => ({
@@ -1137,7 +1189,7 @@ function StepRisk({ ob, plan, onNext, onBack }: {
       isCurrent: false,
     }));
     const current = {
-      name: `${ob.business?.icon ?? ""} ${ob.business?.name ?? "Selected"}`,
+      name: `${ob.business?.icon ?? ""} ${ob.business?.name ?? (isHi ? "चुना गया" : "Selected")}`,
       investment: plan.cost.totalProjectCost,
       fundingGap: plan.funding.fundingGap,
       loan: plan.funding.loanRequired,
@@ -1151,28 +1203,41 @@ function StepRisk({ ob, plan, onNext, onBack }: {
       isCurrent: true,
     };
     return [current, ...altRows];
-  }, [ob.feasibility, ob.business, plan]);
+  }, [ob.feasibility, ob.business, plan, isHi]);
 
-  const feasibilityData = plan.feasibility.factors.map((f) => ({ name: f.label, score: f.score }));
+  const FACTOR_MAP: Record<string, { en: string; hi: string }> = {
+    capital: { en: "Capital Match", hi: "पूंजी अनुकूलता" },
+    profit: { en: "Profitability", hi: "मुनाफ़ा क्षमता" },
+    emi: { en: "EMI Affordability", hi: "ईएमआई वहनीयता" },
+    payback: { en: "Payback Period", hi: "ब्रेक-ईवन व पेबैक" },
+    competition: { en: "Competition", hi: "प्रतिस्पर्धा" },
+  };
+
+  const feasibilityData = plan.feasibility.factors.map((f) => ({
+    name: isHi ? (FACTOR_MAP[f.id]?.hi || f.label) : f.label,
+    score: f.score,
+  }));
 
   return (
     <div className="animate-fade-in space-y-4">
       <StepHeader
         icon={<ShieldAlert className="h-5 w-5" />}
-        title="How risky is it — and is anything better?"
-        hint="Risk with reasons, a 0–100 feasibility score with its drivers, and alternatives compared on the same metrics."
+        title={isHi ? "यह कितना जोखिम भरा है — और क्या कुछ बेहतर है?" : "How risky is it — and is anything better?"}
+        hint={isHi ? "कारणों के साथ जोखिम, 0-100 साध्यता स्कोर और समान मानकों पर विकल्पों की तुलना।" : "Risk with reasons, a 0–100 feasibility score with its drivers, and alternatives compared on the same metrics."}
       />
 
       {/* Risk */}
       <div className="rounded-xl border border-border bg-white p-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-bold">Risk assessment</p>
+          <p className="text-sm font-bold">{isHi ? "जोखिम मूल्यांकन" : "Risk assessment"}</p>
           <span className={cn(
             "rounded-full px-3 py-1 text-xs font-bold",
             plan.risk.level === "low" ? "bg-emerald-100 text-emerald-700"
               : plan.risk.level === "medium" ? "bg-amber-100 text-amber-700"
               : "bg-red-100 text-red-700",
-          )}>{plan.risk.label}</span>
+          )}>
+            {isHi ? (plan.risk.level === "low" ? "कम जोखिम" : plan.risk.level === "medium" ? "मध्यम जोखिम" : "उच्च जोखिम") : plan.risk.label}
+          </span>
         </div>
         {plan.risk.reasons.positive.length > 0 && (
           <div className="mb-2">
@@ -1189,7 +1254,7 @@ function StepRisk({ ob, plan, onNext, onBack }: {
       {/* Feasibility */}
       <div className="rounded-xl border border-border bg-white p-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-bold">Feasibility score</p>
+          <p className="text-sm font-bold">{isHi ? "साध्यता (व्यवहार्यता) स्कोर" : "Feasibility score"}</p>
           <span className="text-2xl font-bold text-primary">{plan.feasibility.score}<span className="text-sm text-muted-foreground font-medium">/100</span></span>
         </div>
         <div className="h-48">
@@ -1205,7 +1270,7 @@ function StepRisk({ ob, plan, onNext, onBack }: {
         <div className="mt-3 space-y-1.5">
           {plan.feasibility.factors.map((f) => (
             <div key={f.id} className="text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">{f.label}</span> ({Math.round(f.weight * 100)}% weight): {f.detail}
+              <span className="font-semibold text-foreground">{isHi ? (FACTOR_MAP[f.id]?.hi || f.label) : f.label}</span> ({Math.round(f.weight * 100)}% {isHi ? "भार" : "weight"}): {f.detail}
             </div>
           ))}
         </div>
@@ -1213,7 +1278,7 @@ function StepRisk({ ob, plan, onNext, onBack }: {
 
       {/* Data confidence */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-2">Data confidence</p>
+        <p className="text-sm font-bold mb-2">{isHi ? "डेटा विश्वसनीयता" : "Data confidence"}</p>
         <div className="space-y-2">
           {plan.confidence.map((c) => (
             <div key={c.label} className="flex items-start gap-2">
@@ -1222,7 +1287,9 @@ function StepRisk({ ob, plan, onNext, onBack }: {
                 c.level === "high" ? "bg-emerald-100 text-emerald-700"
                   : c.level === "medium" ? "bg-amber-100 text-amber-700"
                   : "bg-red-100 text-red-700",
-              )}>{c.level.toUpperCase()}</span>
+              )}>
+                {c.level === "high" ? (isHi ? "उच्च" : "HIGH") : c.level === "medium" ? (isHi ? "मध्यम" : "MEDIUM") : (isHi ? "कम" : "LOW")}
+              </span>
               <p className="text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">{c.label}</span> — {c.why}</p>
             </div>
           ))}
@@ -1231,32 +1298,34 @@ function StepRisk({ ob, plan, onNext, onBack }: {
 
       {/* Comparison */}
       <div className="rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-bold mb-1">Selected business vs alternatives</p>
-        <p className="text-xs text-muted-foreground mb-3">Same metrics, same assumptions — ranked by feasibility.</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "चुना गया व्यवसाय बनाम विकल्प" : "Selected business vs alternatives"}</p>
+        <p className="text-xs text-muted-foreground mb-3">{isHi ? "समान मानक, समान धारणाएं — साध्यता के आधार पर रैंक।" : "Same metrics, same assumptions — ranked by feasibility."}</p>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px] min-w-[560px]">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
-                <th className="py-1.5 pr-2 font-semibold">Business</th>
-                <th className="py-1.5 px-2 font-semibold text-right">Cost</th>
-                <th className="py-1.5 px-2 font-semibold text-right">Gap</th>
-                <th className="py-1.5 px-2 font-semibold text-right">EMI</th>
-                <th className="py-1.5 px-2 font-semibold text-right">Profit</th>
-                <th className="py-1.5 px-2 font-semibold text-right">After EMI</th>
-                <th className="py-1.5 px-2 font-semibold text-right">Risk</th>
-                <th className="py-1.5 pl-2 font-semibold text-right">Feas.</th>
+                <th className="py-1.5 pr-2 font-semibold">{isHi ? "व्यवसाय" : "Business"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "लागत" : "Cost"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "अंतर" : "Gap"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "ईएमआई" : "EMI"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "मुनाफ़ा" : "Profit"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "ईएमआई बाद" : "After EMI"}</th>
+                <th className="py-1.5 px-2 font-semibold text-right">{isHi ? "जोखिम" : "Risk"}</th>
+                <th className="py-1.5 pl-2 font-semibold text-right">{isHi ? "स्कोर" : "Feas."}</th>
               </tr>
             </thead>
             <tbody>
               {comparison.map((row) => (
                 <tr key={row.name} className={cn("border-b border-border/40", row.isCurrent && "bg-primary/5 font-semibold")}>
-                  <td className="py-2 pr-2">{row.name}{row.isCurrent && <span className="text-[9px] text-primary ml-1">SELECTED</span>}</td>
+                  <td className="py-2 pr-2">{row.name}{row.isCurrent && <span className="text-[9px] text-primary ml-1">{isHi ? "चुना गया" : "SELECTED"}</span>}</td>
                   <td className="py-2 px-2 text-right">{formatIndianCurrency(row.investment)}</td>
                   <td className="py-2 px-2 text-right">{formatIndianCurrency(row.fundingGap)}</td>
                   <td className="py-2 px-2 text-right">{row.emi > 0 ? formatIndianCurrency(row.emi) : "—"}</td>
                   <td className="py-2 px-2 text-right">{formatIndianCurrency(row.profit)}</td>
                   <td className={cn("py-2 px-2 text-right", row.afterEmi < 0 && "text-red-600")}>{formatIndianCurrency(row.afterEmi)}</td>
-                  <td className="py-2 px-2 text-right capitalize">{row.risk}</td>
+                  <td className="py-2 px-2 text-right capitalize">
+                    {isHi ? (row.risk === "low" ? "कम" : row.risk === "medium" ? "मध्यम" : "उच्च") : row.risk}
+                  </td>
                   <td className="py-2 pl-2 text-right font-bold">{row.feasibility}</td>
                 </tr>
               ))}
@@ -1267,11 +1336,11 @@ function StepRisk({ ob, plan, onNext, onBack }: {
 
       <div className="flex gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> {isHi ? "पीछे" : "Back"}
         </button>
         <button onClick={onNext}
           className="flex-1 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90">
-          See Final Recommendation <ArrowRight className="inline h-4 w-4 ml-1" />
+          {isHi ? "अंतिम सिफ़ारिश देखें" : "See Final Recommendation"} <ArrowRight className="inline h-4 w-4 ml-1" />
         </button>
       </div>
     </div>
@@ -1285,9 +1354,18 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
   schemeResult: ReturnType<typeof matchSchemesForProfileSource> | null;
   onRestart: () => void;
 }) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
   const verdict = plan.feasibility.score >= 70 ? "good" : plan.feasibility.score >= 50 ? "caution" : "rethink";
-  const statusText = verdict === "good" ? "RECOMMENDED" : verdict === "caution" ? "PROCEED WITH CAUTION" : "NOT RECOMMENDED UNDER CURRENT ASSUMPTIONS";
-  const scaleLabel = SCALE_OPTIONS.find((s) => s.value === ob.scaleChoice)?.label ?? "Recommended Scale";
+  const statusText = verdict === "good"
+    ? (isHi ? "शुरू करने के लिए उपयुक्त (अनुशंसित)" : "RECOMMENDED")
+    : verdict === "caution"
+      ? (isHi ? "सावधानी से आगे बढ़ें" : "PROCEED WITH CAUTION")
+      : (isHi ? "वर्तमान परिस्थितियों में अनुशंसित नहीं" : "NOT RECOMMENDED UNDER CURRENT ASSUMPTIONS");
+  
+  const scaleOpt = SCALE_OPTIONS.find((s) => s.value === ob.scaleChoice);
+  const scaleLabel = isHi ? (scaleOpt?.labelHi || "अनुशंसित पैमाना") : (scaleOpt?.label ?? "Recommended Scale");
 
   const whyBusiness = useMemo(() => {
     const parts: string[] = [];
@@ -1320,7 +1398,15 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
 
   const checklist = buildChecklist(plan, ob);
 
-  const nextFive = [
+  const nextFive = isHi ? [
+    `अपने क्षेत्र (${ob.location?.name ?? "स्थान"}) में ${ob.subCategory?.placeType === "land" ? "ज़मीन" : "दुकान/कार्यस्थल"} के स्थानीय किराये या मूल्य की पुष्टि करें।`,
+    `मुख्य उपकरणों व स्टॉक के लिए 2–3 कोटेशन लें (अनुमानित सेटअप खर्च ${formatIndianCurrency(plan.cost.setupCost)})।`,
+    "आस-पास के 3–5 ग्राहकों या दुकानों से वास्तविक बिक्री दरों की पुष्टि करें।",
+    plan.funding.loanRequired > 0
+      ? `लगभग ${formatIndianCurrency(plan.funding.loanRequired)} के ऋण के लिए अपनी पात्रता जाँचें और 2 बैंकों से तुलना करें।`
+      : "शुरू करने से पहले अपने फंडिंग स्रोतों की पुष्टि करें और आपातकालीन बफ़र रखें।",
+    `${scaleLabel} से शुरुआत करें और 3 महीने बाद समीक्षा करें।`,
+  ] : [
     `Verify the local rent/purchase price for ${ob.subCategory?.placeType === "land" ? "land" : "a shop/workspace"} in ${ob.location?.name ?? "your area"}.`,
     `Obtain 2–3 quotations for the main equipment/inventory items (estimated at ${formatIndianCurrency(plan.cost.setupCost)} setup).`,
     "Confirm local selling prices with 3–5 actual customers or nearby shops.",
@@ -1341,47 +1427,49 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
           : verdict === "caution" ? "border-amber-300 bg-amber-50"
           : "border-red-300 bg-red-50",
       )}>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">GramUdaan Recommendation</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">{isHi ? "ग्रामउड़ान सिफ़ारिश" : "GramUdaan Recommendation"}</p>
         <div className="flex items-center gap-3 mb-2">
           <span className="text-3xl">{getVerdictIcon(verdict)}</span>
           <h2 className={cn("text-xl sm:text-2xl font-bold", getVerdictColor(verdict))}>{statusText}</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Feasibility {plan.feasibility.score}/100 · {plan.risk.label.toLowerCase()} · payback ~{plan.breakEven.investmentPaybackMonths ?? "36+"} months
+          {isHi
+            ? `साध्यता स्कोर ${plan.feasibility.score}/100 · ${plan.risk.level === "low" ? "कम जोखिम" : plan.risk.level === "medium" ? "मध्यम जोखिम" : "उच्च जोखिम"} · पूंजी वापसी ~${plan.breakEven.investmentPaybackMonths ?? "36+"} महीने`
+            : `Feasibility ${plan.feasibility.score}/100 · ${plan.risk.label.toLowerCase()} · payback ~${plan.breakEven.investmentPaybackMonths ?? "36+"} months`}
         </p>
       </div>
 
       {/* Best fit summary */}
       <div className="rounded-2xl border border-border bg-white p-5">
-        <p className="text-sm font-bold mb-3">Best fit for your situation</p>
+        <p className="text-sm font-bold mb-3">{isHi ? "आपकी स्थिति के लिए सर्वश्रेष्ठ विकल्प" : "Best fit for your situation"}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Metric label="Business" value={`${ob.business?.icon ?? ""} ${ob.business?.name ?? "—"}`} />
-          <Metric label="Scale" value={scaleLabel} />
-          <Metric label="Location" value={ob.location?.name ?? "—"} />
-          <Metric label="Your capital" value={formatIndianCurrency(plan.funding.userCapital)} />
-          <Metric label="Total project cost" value={formatIndianCurrency(plan.cost.totalProjectCost)} />
-          <Metric label="Funding gap" value={formatIndianCurrency(plan.funding.fundingGap)} />
-          <Metric label="Estimated loan" value={formatIndianCurrency(plan.funding.loanRequired)} />
-          <Metric label="Estimated EMI" value={formatIndianCurrency(plan.emiStress.emi)} />
-          <Metric label="Monthly revenue" value={formatIndianCurrency(plan.operating.monthlyRevenue)} />
-          <Metric label="Monthly expenses" value={formatIndianCurrency(plan.operating.monthlyExpenses)} />
-          <Metric label="Operating profit" value={formatIndianCurrency(plan.operating.operatingProfit)} />
-          <Metric label="Cash after EMI" value={formatIndianCurrency(plan.profitAfterEmi)} />
-          <Metric label="Break-even" value={plan.breakEven.investmentPaybackMonths ? `${plan.breakEven.investmentPaybackMonths} months` : "3+ years"} />
-          <Metric label="Risk" value={plan.risk.label} />
-          <Metric label="Feasibility" value={`${plan.feasibility.score}/100`} highlight />
+          <Metric label={isHi ? "व्यवसाय" : "Business"} value={`${ob.business?.icon ?? ""} ${ob.business?.name ?? "—"}`} />
+          <Metric label={isHi ? "पैमाना" : "Scale"} value={scaleLabel} />
+          <Metric label={isHi ? "स्थान" : "Location"} value={ob.location?.name ?? "—"} />
+          <Metric label={isHi ? "आपकी पूंजी" : "Your capital"} value={formatIndianCurrency(plan.funding.userCapital)} />
+          <Metric label={isHi ? "कुल परियोजना लागत" : "Total project cost"} value={formatIndianCurrency(plan.cost.totalProjectCost)} />
+          <Metric label={isHi ? "फंडिंग अंतर" : "Funding gap"} value={formatIndianCurrency(plan.funding.fundingGap)} />
+          <Metric label={isHi ? "अनुमानित ऋण" : "Estimated loan"} value={formatIndianCurrency(plan.funding.loanRequired)} />
+          <Metric label={isHi ? "अनुमानित ईएमआई" : "Estimated EMI"} value={formatIndianCurrency(plan.emiStress.emi)} />
+          <Metric label={isHi ? "मासिक बिक्री" : "Monthly revenue"} value={formatIndianCurrency(plan.operating.monthlyRevenue)} />
+          <Metric label={isHi ? "मासिक खर्च" : "Monthly expenses"} value={formatIndianCurrency(plan.operating.monthlyExpenses)} />
+          <Metric label={isHi ? "परिचालन मुनाफ़ा" : "Operating profit"} value={formatIndianCurrency(plan.operating.operatingProfit)} />
+          <Metric label={isHi ? "ईएमआई बाद नकद" : "Cash after EMI"} value={formatIndianCurrency(plan.profitAfterEmi)} />
+          <Metric label={isHi ? "ब्रेक-ईवन" : "Break-even"} value={plan.breakEven.investmentPaybackMonths ? (isHi ? `${plan.breakEven.investmentPaybackMonths} महीने` : `${plan.breakEven.investmentPaybackMonths} months`) : (isHi ? "3+ वर्ष" : "3+ years")} />
+          <Metric label={isHi ? "जोखिम" : "Risk"} value={isHi ? (plan.risk.level === "low" ? "कम जोखिम" : plan.risk.level === "medium" ? "मध्यम जोखिम" : "उच्च जोखिम") : plan.risk.label} />
+          <Metric label={isHi ? "साध्यता" : "Feasibility"} value={`${plan.feasibility.score}/100`} highlight />
         </div>
       </div>
 
       {/* Why this business / why not others */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
-          <p className="text-sm font-bold mb-1">Why this business?</p>
+          <p className="text-sm font-bold mb-1">{isHi ? "यही व्यवसाय क्यों?" : "Why this business?"}</p>
           <p className="text-xs text-muted-foreground leading-relaxed">{whyBusiness}</p>
         </div>
         {whyNotOthers.length > 0 && (
           <div className="rounded-2xl border border-border bg-white p-4">
-            <p className="text-sm font-bold mb-1">Why not the other options?</p>
+            <p className="text-sm font-bold mb-1">{isHi ? "अन्य विकल्प क्यों नहीं?" : "Why not the other options?"}</p>
             <ul className="space-y-1.5">
               {whyNotOthers.map((t, i) => (
                 <li key={i} className="text-xs text-muted-foreground">• {t}</li>
@@ -1394,7 +1482,7 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
       {/* Main risks */}
       {mainRisks.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
-          <p className="text-sm font-bold mb-1">Main risks</p>
+          <p className="text-sm font-bold mb-1">{isHi ? "मुख्य जोखिम" : "Main risks"}</p>
           <ul className="space-y-1">
             {mainRisks.map((r, i) => (
               <li key={i} className="text-xs text-amber-700">⚠ {r}</li>
@@ -1405,8 +1493,8 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
 
       {/* Before you start */}
       <div className="rounded-2xl border border-border bg-white p-5">
-        <p className="text-sm font-bold mb-1">Before you start — verify each item</p>
-        <p className="text-xs text-muted-foreground mb-3">Nothing here is confirmed. These are the checks that protect your money.</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "शुरू करने से पहले — प्रत्येक बिंदु की पुष्टि करें" : "Before you start — verify each item"}</p>
+        <p className="text-xs text-muted-foreground mb-3">{isHi ? "यहाँ कुछ भी अंतिम नहीं है। ये जाँचें आपकी पूंजी को सुरक्षित रखने के लिए हैं।" : "Nothing here is confirmed. These are the checks that protect your money."}</p>
         <div className="space-y-1.5">
           {checklist.map((item, i) => (
             <label key={i} className="flex items-start gap-2.5 text-xs cursor-pointer group">
@@ -1419,7 +1507,7 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
 
       {/* Next 5 steps */}
       <div className="rounded-2xl border border-border bg-white p-5">
-        <p className="text-sm font-bold mb-1">Your next 5 steps</p>
+        <p className="text-sm font-bold mb-1">{isHi ? "आपके अगले 5 कदम" : "Your next 5 steps"}</p>
         <ol className="space-y-2 mt-2">
           {nextFive.map((s, i) => (
             <li key={i} className="flex items-start gap-3 text-sm">
@@ -1434,13 +1522,13 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
       <div className="flex flex-col sm:flex-row gap-3">
         <button onClick={() => navigate("/dashboard")}
           className="flex-1 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90">
-          Open Full Dashboard
+          {isHi ? "डैशबोर्ड खोलें" : "Open Full Dashboard"}
         </button>
         <button onClick={() => navigate("/onboarding")} className="flex-1 rounded-full border border-border px-6 py-3 text-sm font-semibold hover:bg-muted">
-          Edit Plan
+          {isHi ? "योजना संपादित करें" : "Edit Plan"}
         </button>
         <button onClick={onRestart} className="rounded-full border border-border px-6 py-3 text-sm font-semibold hover:bg-muted">
-          Start Over
+          {isHi ? "फिर से शुरू करें" : "Start Over"}
         </button>
       </div>
     </div>
@@ -1450,6 +1538,9 @@ function StepRecommendation({ ob, plan, schemeResult, onRestart }: {
 /* ═════════════════ WHAT-IF (reversible) ═════════════════ */
 
 function WhatIfCard({ plan, ob }: { plan: AdvisoryPlan; ob: ReturnType<typeof useOnboarding> }) {
+  const { language } = useLanguage();
+  const isHi = language === "hi";
+
   const [draft, setDraft] = useState<{ capital: number; otherFunding: number; revenueFactor: number; expenseFactor: number } | null>(null);
 
   const baseline = {
@@ -1476,32 +1567,32 @@ function WhatIfCard({ plan, ob }: { plan: AdvisoryPlan; ob: ReturnType<typeof us
   return (
     <div className="rounded-xl border-2 border-dashed border-primary/40 bg-white p-4">
       <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-bold">What if…?</p>
+        <p className="text-sm font-bold">{isHi ? "क्या होगा अगर…?" : "What if…?"}</p>
         {draft && (
           <button onClick={() => setDraft(null)}
             className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-            <RotateCcw className="h-3 w-3" /> Back to my plan
+            <RotateCcw className="h-3 w-3" /> {isHi ? "मूल योजना पर वापस जाएँ" : "Back to my plan"}
           </button>
         )}
       </div>
       <p className="text-xs text-muted-foreground mb-3">
-        Try changes without touching your saved plan — press "Back to my plan" to revert.
+        {isHi ? "अपनी सहेजी गई योजना को बदले बिना नए विकल्प आज़माएं — वापस जाने के लिए 'मूल योजना पर वापस जाएँ' दबाएं।" : "Try changes without touching your saved plan — press \"Back to my plan\" to revert."}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">Own investment (₹)</label>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "स्वयं का निवेश (₹)" : "Own investment (₹)"}</label>
           <input type="number" min={0} value={draft?.capital ?? baseline.capital}
             onChange={(e) => setDraft({ capital: Math.max(0, Number(e.target.value) || 0), otherFunding: draft?.otherFunding ?? baseline.otherFunding, revenueFactor: 1, expenseFactor: 1 })}
             className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">Other funding (₹)</label>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "अन्य फंडिंग (₹)" : "Other funding (₹)"}</label>
           <input type="number" min={0} value={draft?.otherFunding ?? baseline.otherFunding}
             onChange={(e) => setDraft({ capital: draft?.capital ?? baseline.capital, otherFunding: Math.max(0, Number(e.target.value) || 0), revenueFactor: 1, expenseFactor: 1 })}
             className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-muted-foreground block mb-1">Revenue change (%)</label>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">{isHi ? "बिक्री में बदलाव (%)" : "Revenue change (%)"}</label>
           <input type="number" min={-50} max={50} value={draft ? Math.round((draft.revenueFactor - 1) * 100) : 0}
             onChange={(e) => setDraft({ capital: draft?.capital ?? baseline.capital, otherFunding: draft?.otherFunding ?? baseline.otherFunding, revenueFactor: 1 + (Number(e.target.value) || 0) / 100, expenseFactor: 1 })}
             className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none" />
@@ -1510,15 +1601,15 @@ function WhatIfCard({ plan, ob }: { plan: AdvisoryPlan; ob: ReturnType<typeof us
 
       {whatIfPlan && draft && (
         <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Delta label="Funding gap" now={whatIfPlan.funding.fundingGap} base={plan.funding.fundingGap} invert />
-          <Delta label="EMI" now={whatIfPlan.emiStress.emi} base={plan.emiStress.emi} invert />
-          <Delta label="Profit after EMI" now={whatIfPlan.profitAfterEmi} base={plan.profitAfterEmi} />
-          <Delta label="Feasibility" now={whatIfPlan.feasibility.score} base={plan.feasibility.score} suffix="/100" />
+          <Delta label={isHi ? "फंडिंग अंतर" : "Funding gap"} now={whatIfPlan.funding.fundingGap} base={plan.funding.fundingGap} invert />
+          <Delta label={isHi ? "ईएमआई" : "EMI"} now={whatIfPlan.emiStress.emi} base={plan.emiStress.emi} invert />
+          <Delta label={isHi ? "ईएमआई बाद मुनाफ़ा" : "Profit after EMI"} now={whatIfPlan.profitAfterEmi} base={plan.profitAfterEmi} />
+          <Delta label={isHi ? "साध्यता" : "Feasibility"} now={whatIfPlan.feasibility.score} base={plan.feasibility.score} suffix="/100" />
         </div>
       )}
       {!draft && (
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Example: type +50000 in "Own investment" to see "If I invest ₹50,000 more, what changes?"
+          {isHi ? "उदाहरण: 'स्वयं का निवेश' में ₹50,000 जोड़कर देखें कि आपकी योजना पर क्या प्रभाव पड़ता है।" : "Example: type +50000 in \"Own investment\" to see \"If I invest ₹50,000 more, what changes?\""}
         </p>
       )}
     </div>

@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
-import { generateFeasibility } from "@/data/feasibility";
+import { useState, useEffect } from "react";
 import { formatIndianCurrency, getVerdictColor, getVerdictIcon } from "@/data/assessment";
 import { businessCategories } from "@/data/businesses";
 import { locations } from "@/data/locations";
+import { useLanguage } from "@/i18n/LanguageContext";
+import { buildCanonicalAnalysisResult } from "@/services/api/dataIntegrationService";
+import type { CanonicalAnalysisResult } from "@/types/dataIntegration";
 import {
-  Home,
-  ChevronRight,
   ArrowUpRight,
   Plus,
   X,
@@ -26,20 +26,49 @@ const DEFAULT_SCENARIOS: Scenario[] = [
   { businessId: "grocery", locationId: "loc-1", capital: 100000 },
 ];
 
-export default function Compare() {
-  const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
+export interface ScenarioResult {
+  scenario: Scenario;
+  canonical: CanonicalAnalysisResult;
+  business?: any;
+  location?: any;
+}
 
-  const results = useMemo(() => {
-    return scenarios.map((s) => ({
-      scenario: s,
-      feasibility: generateFeasibility(s.businessId, s.capital, s.locationId),
-      business: businessCategories.find((b) => b.id === s.businessId),
-      location: locations.find((l) => l.id === s.locationId),
-    }));
+export default function Compare() {
+  const { t } = useLanguage();
+  const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
+  const [results, setResults] = useState<ScenarioResult[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadCanonicalResults() {
+      const promises = scenarios.map(async (s) => {
+        const business = businessCategories.find((b) => b.id === s.businessId) || businessCategories[0];
+        const location = locations.find((l) => l.id === s.locationId) || locations[0];
+        const canonical = await buildCanonicalAnalysisResult({
+          location,
+          business,
+          capital: s.capital,
+        });
+        return {
+          scenario: s,
+          canonical,
+          business,
+          location,
+        };
+      });
+      const res = await Promise.all(promises);
+      if (active) {
+        setResults(res);
+      }
+    }
+    loadCanonicalResults();
+    return () => {
+      active = false;
+    };
   }, [scenarios]);
 
-  const bestScore = Math.max(...results.map((r) => r.feasibility.overallScore));
-  const bestIndex = results.findIndex((r) => r.feasibility.overallScore === bestScore);
+  const bestScore = results.length > 0 ? Math.max(...results.map((r) => r.canonical.feasibilityScore.value)) : 0;
+  const bestIndex = results.length > 0 ? results.findIndex((r) => r.canonical.feasibilityScore.value === bestScore) : 0;
 
   const addScenario = () => {
     if (scenarios.length < 3) {
@@ -65,9 +94,9 @@ export default function Compare() {
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-6 sm:py-10">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground mb-1">Compare Business Ideas</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-1">{t("compare.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Compare up to 3 business options side by side. Based on available data.
+            {t("compare.subtitle")}
           </p>
         </div>
 
@@ -80,7 +109,7 @@ export default function Compare() {
             )}>
               {i === bestIndex && (
                 <span className="absolute -top-2.5 left-3 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  BEST FIT
+                  {t("compare.bestFit")}
                 </span>
               )}
               {scenarios.length > 2 && (
@@ -126,7 +155,7 @@ export default function Compare() {
               className="rounded-xl border-2 border-dashed border-border p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/40 hover:bg-primary/5 transition-colors min-h-[120px]"
             >
               <Plus className="h-5 w-5" />
-              <span className="text-xs font-semibold">Add Scenario</span>
+              <span className="text-xs font-semibold">{t("compare.addScenario")}</span>
             </button>
           )}
         </div>
@@ -138,7 +167,7 @@ export default function Compare() {
               <thead>
                 <tr className="border-b border-border bg-muted/30">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider w-40">
-                    Metric
+                    {t("compare.metric")}
                   </th>
                   {results.map((r, i) => (
                     <th key={i} className={cn(
@@ -152,90 +181,62 @@ export default function Compare() {
               </thead>
               <tbody>
                 <ComparisonRow
-                  label="Overall Score"
+                  label={t("compare.overallScore")}
                   values={results.map((r) => ({
-                    value: `${r.feasibility.overallScore}/100`,
-                    highlight: r.feasibility.overallScore === bestScore,
+                    value: `${r.canonical.feasibilityScore.value}/100`,
+                    highlight: r.canonical.feasibilityScore.value === bestScore,
                   }))}
                 />
                 <ComparisonRow
-                  label="Verdict"
+                  label={t("compare.verdict")}
                   values={results.map((r) => ({
-                    value: `${getVerdictIcon(r.feasibility.verdict)} ${r.feasibility.verdictLabel}`,
-                    color: getVerdictColor(r.feasibility.verdict),
+                    value: `${getVerdictIcon(r.canonical.decision.code === "START" ? "good" : r.canonical.decision.code === "PROCEED_CAREFULLY" ? "caution" : "rethink")} ${r.canonical.decision.labelHi}`,
+                    color: getVerdictColor(r.canonical.decision.code === "START" ? "good" : r.canonical.decision.code === "PROCEED_CAREFULLY" ? "caution" : "rethink"),
                   }))}
                 />
                 <ComparisonRow
-                  label="Market Score"
-                  values={results.map((r) => ({ value: `${r.feasibility.subScores.marketScore}` }))}
+                  label={t("compare.projectCost")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.costs.totalSetupCost.value) }))}
                 />
                 <ComparisonRow
-                  label="Opportunity Score"
-                  values={results.map((r) => ({ value: `${r.feasibility.subScores.opportunityScore}` }))}
+                  label={t("compare.loanAmount")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.capitalFit.fundingGap.value) }))}
                 />
                 <ComparisonRow
-                  label="Competition Score"
-                  values={results.map((r) => ({ value: `${r.feasibility.subScores.competitionScore}` }))}
+                  label={t("compare.scheme")}
+                  values={results.map((r) => ({ value: r.canonical.schemes[0]?.schemeNameHi || "PMEGP / Mudra" }))}
                 />
                 <ComparisonRow
-                  label="Risk Score"
-                  values={results.map((r) => ({ value: `${r.feasibility.subScores.riskScore}` }))}
+                  label={t("compare.competitors")}
+                  values={results.map((r) => ({ value: `${r.canonical.nearbyBusinesses.totalMappedBusinesses} (${r.canonical.nearbyBusinesses.densityCategoryHi})` }))}
                 />
                 <ComparisonRow
-                  label="Financial Fit"
-                  values={results.map((r) => ({ value: `${r.feasibility.subScores.financialFitScore}` }))}
+                  label={t("compare.households")}
+                  values={results.map((r) => ({ value: r.canonical.demographics.households.value.toLocaleString("en-IN") }))}
                 />
                 <ComparisonRow
-                  label="Project Cost"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.financial.totalProjectCost) }))}
+                  label={t("compare.requiredInvestment")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.costs.totalSetupCost.value) }))}
                 />
                 <ComparisonRow
-                  label="Loan Amount"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.financial.potentialLoan) }))}
+                  label={t("compare.monthlyRevenue")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.revenue.monthlyRevenueEstimateMax.value) }))}
                 />
                 <ComparisonRow
-                  label="Scheme"
-                  values={results.map((r) => ({ value: r.feasibility.financial.recommendedScheme }))}
+                  label={t("compare.monthlyProfit")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.profit.monthlyNetProfitMax.value) }))}
                 />
                 <ComparisonRow
-                  label="Repayment"
-                  values={results.map((r) => ({ value: r.feasibility.financial.repayment }))}
+                  label={t("compare.profitMargin")}
+                  values={results.map((r) => ({ value: `${r.canonical.profit.netMarginPercent.value}%` }))}
                 />
                 <ComparisonRow
-                  label="Competitors"
-                  values={results.map((r) => ({ value: `${r.feasibility.competition.totalBusinesses} (${r.feasibility.competition.density})` }))}
+                  label={t("compare.breakEven")}
+                  values={results.map((r) => ({ value: `~${r.canonical.breakEven.monthsToBreakEven.value} माह` }))}
                 />
                 <ComparisonRow
-                  label="Households"
-                  values={results.map((r) => ({ value: r.feasibility.marketReach.households.toLocaleString("en-IN") }))}
-                />
-                <ComparisonRow
-                  label="Required Investment"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.profitModel?.capital.requiredInvestment ?? r.feasibility.financial.totalProjectCost) }))}
-                />
-                <ComparisonRow
-                  label="Est. Monthly Revenue"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.profitModel?.monthlyRevenue ?? 0) }))}
-                />
-                <ComparisonRow
-                  label="Est. Monthly Profit"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.profitModel?.monthlyProfit ?? 0) }))}
-                />
-                <ComparisonRow
-                  label="Profit Margin"
-                  values={results.map((r) => ({ value: r.feasibility.profitModel ? `${r.feasibility.profitModel.profitMargin}%` : "—" }))}
-                />
-                <ComparisonRow
-                  label="Break-even"
-                  values={results.map((r) => ({ value: r.feasibility.profitModel?.breakEvenMonth ? `~Month ${r.feasibility.profitModel.breakEvenMonth}` : "9+ months" }))}
-                />
-                <ComparisonRow
-                  label="Profit-based Risk"
-                  values={results.map((r) => ({ value: r.feasibility.profitModel ? r.feasibility.profitModel.risk.label : "—" }))}
-                />
-                <ComparisonRow
-                  label="Funding Gap"
-                  values={results.map((r) => ({ value: formatIndianCurrency(r.feasibility.profitModel?.capital.fundingGap ?? 0) }))}
+                  label={t("compare.fundingGap")}
+                  values={results.map((r) => ({ value: formatIndianCurrency(r.canonical.capitalFit.fundingGap.value) }))}
                 />
               </tbody>
             </table>
@@ -248,10 +249,10 @@ export default function Compare() {
             <Check className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
             <div>
               <h3 className="text-sm font-bold text-emerald-800 mb-1">
-                Based on the current assessment, {results[bestIndex]?.business?.name} appears to be the strongest fit.
+                {t("compare.recStrongest").replace("{business}", results[bestIndex]?.business?.name ?? "")}
               </h3>
               <p className="text-xs text-emerald-600">
-                This comparison is based on available simulated data for demonstration purposes. Actual results may vary based on real market conditions.
+                {t("compare.disclaimer")}
               </p>
             </div>
           </div>
@@ -263,14 +264,14 @@ export default function Compare() {
             to="/dashboard"
             className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            View Full Dashboard
+            {t("compare.viewDashboard")}
             <ArrowUpRight className="h-4 w-4" />
           </Link>
           <Link
             to="/onboarding"
             className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
           >
-            Start New Assessment
+            {t("compare.startAssessment")}
           </Link>
         </div>
       </main>

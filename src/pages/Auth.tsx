@@ -34,7 +34,25 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
+import { useLanguage } from "@/i18n/LanguageContext";
+import { Languages } from "lucide-react";
+
+function AuthLanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <button
+      onClick={() => setLanguage(language === "hi" ? "en" : "hi")}
+      title="Switch Language / भाषा बदलें"
+      className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100 shadow-sm"
+    >
+      <Languages className="h-3.5 w-3.5" />
+      <span>{language === "hi" ? "English" : "हिंदी"}</span>
+    </button>
+  );
+}
+
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
+  const { t } = useLanguage();
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -66,7 +84,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       setError(
         error instanceof Error
           ? error.message
-          : "Failed to send verification code. Please try again.",
+          : t("auth.errorSend"),
       );
       setIsLoading(false);
     }
@@ -86,7 +104,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     } catch (error) {
       console.error("OTP verification error:", error);
 
-      setError("The verification code you entered is incorrect.");
+      setError(t("auth.errorOtp"));
       setIsLoading(false);
 
       setOtp("");
@@ -104,17 +122,19 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     } catch (error) {
       console.error("Guest login error:", error);
       console.error("Error details:", JSON.stringify(error, null, 2));
-      setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(`${t("auth.errorGuest")}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="flex justify-end p-4">
+        <AuthLanguageToggle />
+      </div>
 
-      
       {/* Auth Content */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center p-4">
         <div className="flex items-center justify-center h-full flex-col">
         <Card className="min-w-[350px] pb-0 border shadow-md">
           {step === "signIn" ? (
@@ -123,16 +143,16 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               <div className="flex justify-center">
                     <img
                       src={logo}
-                      alt="Lock Icon"
+                      alt="GramUdaan Logo"
                       width={64}
                       height={64}
                       className="rounded-lg mb-4 mt-4 cursor-pointer"
                       onClick={() => navigate("/")}
                     />
                   </div>
-                <CardTitle className="text-xl">Welcome to GramUdaan</CardTitle>
+                <CardTitle className="text-xl">{t("auth.welcome")}</CardTitle>
                 <CardDescription>
-                  Enter your email to sign in or create an account
+                  {t("auth.signInSub")}
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleEmailSubmit}>
@@ -174,7 +194,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
                         <span className="bg-background px-2 text-muted-foreground">
-                          Or
+                          {t("auth.or")}
                         </span>
                       </div>
                     </div>
@@ -187,7 +207,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       disabled={isLoading}
                     >
                       <UserX className="mr-2 h-4 w-4" />
-                      Continue as Guest
+                      {t("auth.guestLogin")}
                     </Button>
                   </div>
                 </CardContent>
@@ -196,9 +216,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           ) : (
             <>
               <CardHeader className="text-center mt-4">
-                <CardTitle>Check your email</CardTitle>
+                <CardTitle>{t("auth.checkEmail")}</CardTitle>
                 <CardDescription>
-                  We've sent a code to {step.email}
+                  {t("auth.sentCodeTo")} {step.email}
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleOtpSubmit}>
@@ -235,13 +255,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground text-center mt-4">
-                    Didn't receive a code?{" "}
+                    {t("auth.resendCode")}{" "}
                     <Button
                       variant="link"
                       className="p-0 h-auto"
                       onClick={() => setStep("signIn")}
                     >
-                      Try again
+                      {t("auth.tryAgain")}
                     </Button>
                   </p>
                 </CardContent>
@@ -254,11 +274,11 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
+                        {t("auth.verifying")}
                       </>
                     ) : (
                       <>
-                        Verify code
+                        {t("auth.verifyCode")}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}
@@ -270,7 +290,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     disabled={isLoading}
                     className="w-full"
                   >
-                    Use different email
+                    {t("auth.differentEmail")}
                   </Button>
                 </CardFooter>
               </form>
@@ -278,7 +298,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           )}
 
           <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
-            Powered by GramUdaan
+            {t("auth.poweredBy")}
           </div>
         </Card>
         </div>

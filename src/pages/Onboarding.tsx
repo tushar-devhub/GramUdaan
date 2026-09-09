@@ -28,18 +28,24 @@ import {
   CheckCircle2, ArrowLeft, ArrowRight, Edit3, Check,
   TrendingUp, X, Loader2, Sparkles, Navigation, Database, AlertCircle, RotateCcw,
   Home, Building2, Hammer, Warehouse, KeyRound, HelpCircle, SlidersHorizontal, ChevronDown,
-  Wallet, ShieldCheck, BarChart3, ListChecks,
+  Wallet, ShieldCheck, BarChart3, ListChecks, Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageContext";
 
-const STEPS = [
-  { id: 0, label: "Location" },
-  { id: 1, label: "Business" },
-  { id: 2, label: "Business Type" },
-  { id: 3, label: "Place" },
-  { id: 4, label: "Capital" },
-  { id: 5, label: "Review" },
-];
+function OnboardingLanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <button
+      onClick={() => setLanguage(language === "hi" ? "en" : "hi")}
+      title="Switch Language / भाषा बदलें"
+      className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100 shadow-sm"
+    >
+      <Languages className="h-3.5 w-3.5" />
+      <span>{language === "hi" ? "English" : "हिंदी"}</span>
+    </button>
+  );
+}
 
 // Quick-pick contribution chips shown on the Capital step.
 const QUICK_AMOUNTS = [
@@ -52,10 +58,20 @@ const QUICK_AMOUNTS = [
 const RADIUS_OPTIONS = [5, 10, 15, 25];
 
 function OnboardingInner() {
+  const { language, t } = useLanguage();
   const [step, setStep] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [transitionText, setTransitionText] = useState("");
   const navigate = useNavigate();
+
+  const steps = useMemo(() => [
+    { id: 0, label: t("onboarding.stepLocation") },
+    { id: 1, label: t("onboarding.stepBusiness") },
+    { id: 2, label: t("onboarding.stepBusinessType") },
+    { id: 3, label: t("onboarding.stepPlace") },
+    { id: 4, label: t("onboarding.stepCapital") },
+    { id: 5, label: t("onboarding.stepReview") },
+  ], [t]);
   const {
     location, setLocation, radius, setRadius,
     business, setBusiness, capital, setCapital,
@@ -64,7 +80,7 @@ function OnboardingInner() {
     businessAnswers, setBusinessAnswer,
     otherFunding, setOtherFunding,
     costOverrides, setCostOverride, resetCostOverrides,
-    setFeasibility, isAnalyzing, setIsAnalyzing,
+    setFeasibility, isAnalyzing, setIsAnalyzing, runFullAnalysis,
   } = useOnboarding();
 
   const [businessSearch, setBusinessSearch] = useState("");
@@ -76,7 +92,11 @@ function OnboardingInner() {
     if (!businessSearch) return businessCategories;
     const q = businessSearch.toLowerCase();
     return businessCategories.filter(
-      (b) => b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q),
+      (b) =>
+        b.name.toLowerCase().includes(q) ||
+        b.nameHi.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.descriptionHi.toLowerCase().includes(q),
     );
   }, [businessSearch]);
 
@@ -102,24 +122,24 @@ function OnboardingInner() {
 
   const handleNext = useCallback(() => {
     if (step === 4 && capital <= 0) {
-      setCapitalError("Please enter a valid amount");
+      setCapitalError(t("onboarding.capErrorValidAmount"));
       return;
     }
     if (step < 5) {
       const texts = [
-        "Looking up market data...",
-        "Preparing business categories...",
-        "Loading business types...",
-        "Checking your workspace...",
-        "Reviewing your selections...",
+        language === "hi" ? "बाज़ार डेटा देखा जा रहा है..." : "Looking up market data...",
+        language === "hi" ? "व्यवसाय श्रेणियां तैयार की जा रही हैं..." : "Preparing business categories...",
+        language === "hi" ? "व्यवसाय के प्रकार लोड हो रहे हैं..." : "Loading business types...",
+        language === "hi" ? "कार्यस्थल की जाँच हो रही है..." : "Checking your workspace...",
+        language === "hi" ? "आपकी जानकारी जाँची जा रही है..." : "Reviewing your selections...",
       ];
-      transitionTo(step + 1, texts[step] || "Loading...");
+      transitionTo(step + 1, texts[step] || (language === "hi" ? "लोड हो रहा है..." : "Loading..."));
     }
-  }, [step, capital, transitionTo]);
+  }, [step, capital, transitionTo, language, t]);
 
   const handleBack = useCallback(() => {
-    if (step > 0) transitionTo(step - 1, "Going back...");
-  }, [step, transitionTo]);
+    if (step > 0) transitionTo(step - 1, language === "hi" ? "वापस जा रहे हैं..." : "Going back...");
+  }, [step, transitionTo, language]);
 
   // Switching business / business-type clears cost overrides — edits belong
   // to the previous breakdown and must not silently apply to a new one.
@@ -127,6 +147,7 @@ function OnboardingInner() {
     resetCostOverrides();
     setBusiness(b);
   }, [setBusiness, resetCostOverrides]);
+
   const chooseSubCategory = useCallback((s: BusinessSubCategory | null) => {
     resetCostOverrides();
     setSubCategory(s);
@@ -137,8 +158,8 @@ function OnboardingInner() {
     // Defensive: never analyze without a capital figure — send the user back
     // to the capital step instead of running the engine with ₹0.
     if (capital <= 0) {
-      setCapitalError("Please enter a valid amount");
-      void transitionTo(4, "Going to capital...");
+      setCapitalError(t("onboarding.capErrorValidAmount"));
+      void transitionTo(4, language === "hi" ? "पूंजी चरण पर जा रहे हैं..." : "Going to capital...");
       return;
     }
     analyzeBusyRef.current = true;
@@ -146,21 +167,12 @@ function OnboardingInner() {
     setIsAnalyzing(true);
     try {
       const startedAt = Date.now();
-      const feasibility = generateFeasibility(business.id, capital, location.id, radius, {
-        subCategoryId: subCategory?.id ?? null,
-        placeStatus,
-        rentMonthly,
-        scaleChoice,
-        overrides: costOverrides,
-      });
-      // The calculation itself is fast — hold the polished branded loader
-      // for a short minimum so there is no abrupt flash into the dashboard.
+      await runFullAnalysis();
       const elapsed = Date.now() - startedAt;
       const minDisplay = 3200;
       if (elapsed < minDisplay) {
         await new Promise((resolve) => setTimeout(resolve, minDisplay - elapsed));
       }
-      setFeasibility(feasibility);
       setIsAnalyzing(false);
       analyzeBusyRef.current = false;
       navigate("/dashboard");
@@ -170,7 +182,7 @@ function OnboardingInner() {
       analyzeBusyRef.current = false;
       setAnalyzeError(true);
     }
-  }, [business, location, capital, radius, subCategory, placeStatus, rentMonthly, scaleChoice, navigate, setFeasibility, setIsAnalyzing, transitionTo]);
+  }, [business, location, capital, navigate, runFullAnalysis, setIsAnalyzing, transitionTo, language, t]);
 
   if (analyzeError) {
     return (
@@ -180,20 +192,20 @@ function OnboardingInner() {
             <div className="h-12 w-12 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
               <AlertCircle className="h-6 w-6 text-red-500" />
             </div>
-            <h2 className="text-lg font-bold text-foreground">Something went wrong while analyzing your business</h2>
-            <p className="text-sm text-muted-foreground mt-2">Your selections are safe — your analysis was not lost.</p>
+            <h2 className="text-lg font-bold text-foreground">{t("onboarding.errAnalyzing")}</h2>
+            <p className="text-sm text-muted-foreground mt-2">{t("onboarding.errSelectionsSafe")}</p>
             <div className="flex flex-wrap gap-3 justify-center mt-6">
               <button
                 onClick={() => setAnalyzeError(false)}
                 className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> Back to Review
+                <ArrowLeft className="h-4 w-4" /> {t("onboarding.errBackToReview")}
               </button>
               <button
                 onClick={handleAnalyze}
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
               >
-                <RotateCcw className="h-4 w-4" /> Try Again
+                <RotateCcw className="h-4 w-4" /> {t("onboarding.errTryAgain")}
               </button>
             </div>
           </div>
@@ -203,7 +215,7 @@ function OnboardingInner() {
   }
 
   if (isAnalyzing) {
-    return <AnalysisLoader businessName={business?.name || "Your business"} locationName={location?.name || ""} />;
+    return <AnalysisLoader businessName={language === "hi" ? (business?.nameHi || business?.name || "") : (business?.name || "Your business")} locationName={location?.name || ""} />;
   }
 
   // Step transition screen
@@ -224,13 +236,16 @@ function OnboardingInner() {
       <div className="border-b border-border/50 bg-white">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between">
           <span className="text-sm font-bold text-primary font-serif-display">GramUdaan</span>
-          <button onClick={() => navigate("/")} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-3.5 w-3.5" />
-            Exit
-          </button>
+          <div className="flex items-center gap-3">
+            <OnboardingLanguageToggle />
+            <button onClick={() => navigate("/")} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-3.5 w-3.5" />
+              {t("common.cancel")}
+            </button>
+          </div>
         </div>
         <div className="px-4 pb-3">
-          <ProgressStepper steps={STEPS} currentStep={step} />
+          <ProgressStepper steps={steps} currentStep={step} />
         </div>
       </div>
 
@@ -303,19 +318,19 @@ function OnboardingInner() {
         <div className="mx-auto max-w-2xl flex items-center justify-between">
           <button onClick={handleBack} disabled={step === 0}
             className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            <ArrowLeft className="h-4 w-4" /> Back
+            <ArrowLeft className="h-4 w-4" /> {t("common.back")}
           </button>
           {step < 5 ? (
             <button onClick={handleNext} disabled={!canProceed}
               className={cn("inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold transition-all",
                 canProceed ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" : "bg-muted text-muted-foreground cursor-not-allowed",
               )}>
-              Continue <ArrowRight className="h-4 w-4" />
+              {t("common.next")} <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
             <button onClick={handleAnalyze}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
-              Analyze My Business <ArrowRight className="h-4 w-4" />
+              {t("onboarding.analyzeFeasibility")} <ArrowRight className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -341,6 +356,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
   radius: number;
   onRadiusChange: (r: number) => void;
 }) {
+  const { language, t } = useLanguage();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<LocationHit[]>([]);
   const [geo, setGeo] = useState<GeoLoadState>(getLoadState());
@@ -529,9 +545,9 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <MapPin className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">Where do you want to start your business?</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.locTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Search any village, town or city across India — we will analyze the local market around it
+          {t("onboarding.locSubtitle")}
         </p>
       </div>
 
@@ -553,7 +569,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
               }
             }
           }}
-          placeholder="Search by PIN code, village, town or district across India…"
+          placeholder={t("onboarding.locSearchPlaceholder")}
           className="w-full rounded-xl border border-border bg-white py-3 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
         />
         {query && (
@@ -568,7 +584,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
       {!isPinQuery(query.trim()) && datasetLoading && (
         <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-border/60 bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground">
           <Loader2 className="h-4 w-4 text-primary animate-spin" />
-          <span className="flex-1">Loading location index — search will be ready in a moment…</span>
+          <span className="flex-1">{t("onboarding.locLoadingIndex")}</span>
           {geo.progress != null && geo.progress > 0 && (
             <span className="font-semibold text-primary">{geo.progress}%</span>
           )}
@@ -577,27 +593,27 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
       {!isPinQuery(query.trim()) && datasetError && (
         <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span className="flex-1">Location data could not be loaded. Showing demo towns only.</span>
+          <span className="flex-1">{t("onboarding.locDataError")}</span>
           <button onClick={() => setReloadKey((k) => k + 1)}
             className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-600 hover:bg-red-50 transition-colors">
-            <RotateCcw className="h-3 w-3" /> Retry
+            <RotateCcw className="h-3 w-3" /> {t("onboarding.locRetry")}
           </button>
         </div>
       )}
       {!isPinQuery(query.trim()) && geo.status === "ready" && (
         <p className="mb-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Database className="h-3 w-3" />
-          {geo.total.toLocaleString("en-IN")} PIN locations indexed across India
+          {t("onboarding.locIndexedLocations", { count: geo.total.toLocaleString(language === "hi" ? "hi-IN" : "en-IN") })}
           <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
             search v4
           </span>
           {detail.status === "loading" && (
             <span className="inline-flex items-center gap-1 text-primary/80">
               <Loader2 className="h-3 w-3 animate-spin" />
-              adding post-office detail{detail.progress != null && detail.progress > 0 ? `… ${detail.progress}%` : "…"}
+              {t("onboarding.locPostOfficeDetail")}{detail.progress != null && detail.progress > 0 ? ` ${detail.progress}%` : ""}
             </span>
           )}
-          {detail.status === "ready" && " · full post-office detail ready"}
+          {detail.status === "ready" && ` · ${t("onboarding.locPostOfficeReady")}`}
         </p>
       )}
 
@@ -620,7 +636,9 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
                 <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
                 <p className="text-sm font-bold text-foreground truncate">{selected.name}</p>
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary flex-shrink-0">
-                  {selected.type}
+                  {language === "hi"
+                    ? (selected.type === "village" ? "गाँव" : selected.type === "town" ? "कस्बा" : selected.type === "city" ? "शहर" : selected.type)
+                    : selected.type}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">{selected.district}, {selected.state}</p>
@@ -632,15 +650,15 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
 
           <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-border/60 pt-2.5">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">District</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{t("onboarding.locDistrict")}</p>
               <p className="text-xs font-bold text-foreground truncate mt-0.5">{selected.district}</p>
             </div>
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Analysis area</p>
-              <p className="text-xs font-bold text-foreground mt-0.5">{radius} km radius</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{t("onboarding.locAnalysisArea")}</p>
+              <p className="text-xs font-bold text-foreground mt-0.5">{t("onboarding.locAnalysisRadius", { radius: String(radius) })}</p>
             </div>
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Nearby districts</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{t("onboarding.locNearbyDistricts")}</p>
               <p className="text-xs font-bold text-foreground mt-0.5">
                 {boundary.status === "ready" && boundary.feature ? boundary.neighbors.length : "…"}
               </p>
@@ -651,8 +669,8 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
             <p className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground border-t border-border/60 pt-2">
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
               {boundary.progress != null && boundary.progress > 0
-                ? `Loading district boundary… ${boundary.progress}%`
-                : "Finding district boundary…"}
+                ? `${language === "hi" ? "ज़िला सीमा लोड हो रही है…" : "Loading district boundary…"} ${boundary.progress}%`
+                : (language === "hi" ? "ज़िला सीमा खोजी जा रही है…" : "Finding district boundary…")}
             </p>
           )}
           {boundary.status === "ready" && boundary.feature && boundary.viaContainment && (
@@ -660,7 +678,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
           )}
           {boundary.status === "error" && (
             <p className="mt-2 text-[10px] text-amber-600 border-t border-border/60 pt-2">
-              District boundary unavailable — marker &amp; radius still shown
+              {language === "hi" ? "ज़िला सीमा अनुपलब्ध — मार्कर और दायरा दिखाई दे रहा है" : "District boundary unavailable — marker & radius still shown"}
             </p>
           )}
         </div>
@@ -673,13 +691,13 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
       <div className="mb-4">
         <div className="mb-1.5 flex items-center justify-between px-1">
           <p className="text-xs font-semibold text-muted-foreground">
-            {query.trim() ? "Search results" : "Suggested locations"}
+            {query.trim() ? t("onboarding.locSearchResults") : t("onboarding.locSuggested")}
           </p>
           {isPinQuery(query.trim()) && (
-            <p className="text-[10px] text-muted-foreground">online PIN lookup</p>
+            <p className="text-[10px] text-muted-foreground">{t("onboarding.locOnlinePin")}</p>
           )}
           {!query.trim() && geo.status === "ready" && (
-            <p className="text-[10px] text-muted-foreground">Try “242001”, “Shahjahanpur”, “Mumbai”…</p>
+            <p className="text-[10px] text-muted-foreground">{t("onboarding.locSearchExample")}</p>
           )}
         </div>
         <div className="max-h-56 overflow-y-auto rounded-xl border border-border divide-y divide-border/50">
@@ -702,7 +720,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                 <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  {hit.typeLabel}{hit.isCurated ? " · demo" : ""}
+                  {hit.typeLabel}{hit.isCurated ? (language === "hi" ? " · डेमो" : " · demo") : ""}
                 </span>
                 <span className="text-[10px] font-semibold text-[#4a6a5a]">{hit.pincode}</span>
               </div>
@@ -717,7 +735,7 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
                 pinBusy ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                    Searching this PIN code…
+                    {t("onboarding.locSearchingPin")}
                   </span>
                 ) : pinError ? (
                   <span className="flex flex-col items-center gap-2">
@@ -727,45 +745,45 @@ function LocationStep({ selected, onSelect, radius, onRadiusChange }: {
                       className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-4 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
                     >
                       <RotateCcw className="h-3 w-3" />
-                      Try again
+                      {t("onboarding.locRetry")}
                     </button>
                   </span>
                 ) : (
-                  "No locations found for this PIN code."
+                  t("onboarding.locNoPinFound")
                 )
               ) : datasetError ? (
-                "No matching demo town. Try a different spelling or PIN code."
+                t("onboarding.locDataError")
               ) : datasetLoading ? (
-                "Indexing locations…"
+                t("onboarding.locLoadingIndex")
               ) : (
-                "No matching Indian location found. Try a different spelling or PIN code."
+                t("onboarding.locNoMatchFound")
               )}
             </div>
           )}
         </div>
         {!query.trim() && geo.status !== "ready" && (
           <p className="mt-1.5 text-[10px] text-muted-foreground">
-            Demo towns are searchable while the India index loads.
+            {t("onboarding.locDemoTownsHint")}
           </p>
         )}
       </div>
 
       {/* Radius selection */}
       <div>
-        <p className="text-sm font-semibold text-foreground mb-2">Analysis radius</p>
+        <p className="text-sm font-semibold text-foreground mb-2">{t("onboarding.locRadiusTitle")}</p>
         <div className="flex gap-2">
           {RADIUS_OPTIONS.map((r) => (
             <button key={r} onClick={() => onRadiusChange(r)}
               className={cn("flex-1 rounded-xl border py-3 text-sm font-semibold transition-all",
                 radius === r ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/40",
               )}>
-              {r} km
+              {r} {language === "hi" ? "किमी" : "km"}
             </button>
           ))}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5">
           <Navigation className="h-3 w-3" />
-          Tap anywhere on the map to snap to the nearest post office
+          {t("onboarding.locTapMapHint")}
         </p>
       </div>
     </div>
@@ -779,8 +797,9 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
   onSelect: (b: BusinessCategory | null) => void;
   location: Location | null;
 }) {
+  const { language, t } = useLanguage();
   const recommendations = useMemo(() => (location ? getRecommendations(location) : []), [location]);
-  const [showRecommendations, setShowRecommendations] = useState(true);
+  const [showRecommendations] = useState(true);
 
   const handleSuggestMe = useCallback(() => {
     if (recommendations.length > 0) {
@@ -801,9 +820,9 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <Store className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">What business are you planning?</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.bizTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Pick the category that best describes what you want to start
+          {t("onboarding.bizSubtitle")}
         </p>
       </div>
 
@@ -813,11 +832,11 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-bold text-foreground">
-              Businesses that may work well in {location?.name}
+              {t("onboarding.bizRecHeading", { location: location?.name || "" })}
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            Based on your selected location and available market information
+            {t("onboarding.bizRecSub")}
           </p>
           <div className="space-y-2">
             {recommendations.map((rec) => (
@@ -831,12 +850,16 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
                 <span className="text-2xl flex-shrink-0">{rankEmoji[rec.rank - 1]}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-foreground">{rec.business.name}</span>
+                    <span className="text-sm font-bold text-foreground">
+                      {language === "hi" ? rec.business.nameHi : rec.business.name}
+                    </span>
                     <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
                       rec.competitionLevel === "low" ? "bg-emerald-100 text-emerald-700" :
                       rec.competitionLevel === "medium" ? "bg-amber-100 text-amber-700" :
                       "bg-red-100 text-red-700",
-                    )}>{rec.competitionLevel} competition</span>
+                    )}>
+                      {rec.competitionLevel === "low" ? t("onboarding.bizCompLow") : rec.competitionLevel === "medium" ? t("onboarding.bizCompMedium") : t("onboarding.bizCompHigh")}
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{rec.reason}</p>
                 </div>
@@ -857,7 +880,9 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
       {recommendations.length > 0 && !search && showRecommendations && (
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 h-px bg-border" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Explore all categories</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("onboarding.bizExploreAll")}
+          </span>
           <div className="flex-1 h-px bg-border" />
         </div>
       )}
@@ -866,7 +891,7 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
       <div className="relative mb-4">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input type="text" value={search} onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search businesses..."
+          placeholder={t("onboarding.bizSearchPlaceholder")}
           className="w-full rounded-xl border border-border bg-white py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
       </div>
 
@@ -881,9 +906,12 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
                 : "border-border hover:border-primary/40 bg-white hover:shadow-md",
             )}>
             <span className="text-3xl mb-2">{biz.icon}</span>
-            <span className="text-sm font-semibold text-foreground">{biz.name}</span>
-            <span className="text-[10px] text-primary/60 font-medium mt-0.5">{biz.nameHi}</span>
-            <span className="text-[11px] text-muted-foreground mt-1 leading-tight line-clamp-2">{biz.description}</span>
+            <span className="text-sm font-semibold text-foreground">
+              {language === "hi" ? biz.nameHi : biz.name}
+            </span>
+            <span className="text-[11px] text-muted-foreground mt-1 leading-tight line-clamp-2">
+              {language === "hi" ? biz.descriptionHi : biz.description}
+            </span>
             {selected?.id === biz.id && (
               <Check className="h-4 w-4 text-primary mt-2" style={{ animation: "checkPop 0.3s ease-out" }} />
             )}
@@ -900,9 +928,14 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
             : "border-primary/30 hover:border-primary/60 hover:bg-primary/5",
         )}>
         <Lightbulb className="h-5 w-5 text-primary mx-auto mb-1" />
-        <span className="text-sm font-semibold text-primary">I'm not sure — suggest a business for me</span>
+        <span className="text-sm font-semibold text-primary">{t("onboarding.bizSuggestBtn")}</span>
         <span className="block text-xs text-muted-foreground mt-0.5">
-          {location ? `We recommend ${recommendations[0]?.business?.name || "a business"} for ${location.name}` : "We'll recommend based on your location"}
+          {location
+            ? t("onboarding.bizSuggestSub", {
+                business: language === "hi" ? (recommendations[0]?.business?.nameHi || recommendations[0]?.business?.name || "") : (recommendations[0]?.business?.name || "a business"),
+                location: location.name,
+              })
+            : t("onboarding.bizSuggestSubGeneric")}
         </span>
       </button>
     </div>
@@ -917,6 +950,7 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
   answers: Record<string, string>;
   onAnswer: (id: string, value: string) => void;
 }) {
+  const { language, t } = useLanguage();
   const options = useMemo(() => (business ? getSubCategoriesForBusiness(business.id) : []), [business]);
 
   return (
@@ -925,9 +959,15 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <SlidersHorizontal className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">What exactly are you planning?</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.typeTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          {business ? <>For <span className="font-semibold text-foreground">{business.icon} {business.name}</span> — pick the specific type. This changes the cost and revenue estimates.</> : "Pick the specific type of business"}
+          {business?.id === "agri-inputs"
+            ? t("onboarding.typeSubAgriInputs")
+            : business
+              ? t("onboarding.typeSubGeneral", {
+                  business: language === "hi" ? (business.nameHi || business.name) : business.name,
+                })
+              : t("onboarding.typeSubGeneric")}
         </p>
       </div>
 
@@ -943,11 +983,14 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
             <span className="text-2xl flex-shrink-0">{opt.icon}</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-foreground">{opt.name}</p>
+                <p className="text-sm font-bold text-foreground">
+                  {language === "hi" ? opt.nameHi : opt.name}
+                </p>
                 {selected?.id === opt.id && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.description}</p>
-              <p className="text-[10px] text-primary/70 mt-1">की आवश्यकता: {opt.nameHi}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                {language === "hi" ? opt.descriptionHi : opt.description}
+              </p>
             </div>
           </button>
         ))}
@@ -956,12 +999,14 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
       {/* Business-specific questions for the chosen sub-category */}
       {selected && selected.questions.length > 0 && (
         <div className="rounded-xl border border-border bg-[#F4F8EF] p-4 mb-6 animate-fade-in">
-          <p className="text-sm font-bold text-foreground mb-1">A few quick questions</p>
-          <p className="text-xs text-muted-foreground mb-4">These help us fine-tune the estimate for your plan.</p>
+          <p className="text-sm font-bold text-foreground mb-1">{t("onboarding.typeQuickQuestions")}</p>
+          <p className="text-xs text-muted-foreground mb-4">{t("onboarding.typeQuestionsSub")}</p>
           <div className="space-y-4">
             {selected.questions.map((q) => (
               <div key={q.id}>
-                <p className="text-sm font-semibold text-foreground mb-2">{q.label}</p>
+                <p className="text-sm font-semibold text-foreground mb-2">
+                  {language === "hi" && q.labelHi ? q.labelHi : q.label}
+                </p>
                 {q.options ? (
                   <div className="flex flex-wrap gap-2">
                     {q.options.map((o) => (
@@ -971,7 +1016,7 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border bg-white text-muted-foreground hover:border-primary/40",
                         )}>
-                        {o.label}
+                        {language === "hi" && o.labelHi ? o.labelHi : o.label}
                       </button>
                     ))}
                   </div>
@@ -980,7 +1025,7 @@ function SubCategoryStep({ business, selected, onSelect, answers, onAnswer }: {
                     type="text"
                     value={answers[q.id] || ""}
                     onChange={(e) => onAnswer(q.id, e.target.value)}
-                    placeholder={q.placeholder || q.label}
+                    placeholder={q.placeholder || (language === "hi" && q.labelHi ? q.labelHi : q.label)}
                     className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 )}
@@ -1028,6 +1073,7 @@ function PlaceStep({ business, subCategory, status, onStatusChange, rentMonthly,
   rentMonthly: number;
   onRentChange: (r: number) => void;
 }) {
+  const { language, t } = useLanguage();
   const needs = subCategory?.placeType ?? "shop";
 
   return (
@@ -1036,12 +1082,17 @@ function PlaceStep({ business, subCategory, status, onStatusChange, rentMonthly,
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <Building2 className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">Do you already have the place for this business?</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.placeTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
           {business && subCategory ? (
-            <><span className="font-semibold text-foreground">{subCategory.icon} {subCategory.name}</span> typically needs {PLACE_TYPE_LABEL[needs]}. This directly changes the setup cost — if you own it, we won't add a purchase cost.</>
+            t("onboarding.placeSub", {
+              business: language === "hi" ? (subCategory.nameHi || subCategory.name) : subCategory.name,
+              place: language === "hi"
+                ? (needs === "shop" ? "दुकान" : needs === "land" ? "ज़मीन / शेड" : needs === "workspace" ? "कार्यस्थल" : needs === "shed" ? "शेड" : "अलग जगह नहीं")
+                : PLACE_TYPE_LABEL[needs],
+            })
           ) : (
-            "Your answer changes how we estimate the setup cost — if you own it, we don't add a purchase cost."
+            t("onboarding.placeSubGeneric")
           )}
         </p>
       </div>
@@ -1062,11 +1113,21 @@ function PlaceStep({ business, subCategory, status, onStatusChange, rentMonthly,
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-foreground">{opt.label}</p>
+                <p className="text-sm font-bold text-foreground">
+                  {language === "hi" ? opt.labelHi : opt.label}
+                </p>
                 {status === opt.value && <Check className="h-4 w-4 text-primary flex-shrink-0" />}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{opt.hint}</p>
-              <p className="text-[10px] text-primary/70 mt-0.5">{opt.labelHi}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                {language === "hi"
+                  ? (opt.value === "own" ? t("onboarding.placeOptOwnHint") :
+                     opt.value === "rent" ? t("onboarding.placeOptRentHint") :
+                     opt.value === "buy" ? t("onboarding.placeOptBuyHint") :
+                     opt.value === "build" ? t("onboarding.placeOptBuildHint") :
+                     opt.value === "not-needed" ? t("onboarding.placeOptNotNeededHint") :
+                     t("onboarding.placeOptUnsureHint"))
+                  : opt.hint}
+              </p>
             </div>
           </button>
         ))}
@@ -1074,9 +1135,9 @@ function PlaceStep({ business, subCategory, status, onStatusChange, rentMonthly,
 
       {status === "rent" && (
         <div className="rounded-xl border border-border bg-[#F4F8EF] p-4 animate-fade-in">
-          <p className="text-sm font-semibold text-foreground mb-2">Expected monthly rent (₹)?</p>
+          <p className="text-sm font-semibold text-foreground mb-2">{t("onboarding.placeMonthlyRentLabel")}</p>
           <p className="text-xs text-muted-foreground mb-3">
-            If unsure, we'll use a typical estimate for {PLACE_TYPE_LABEL[needs]} in a rural market.
+            {t("onboarding.placeMonthlyRentHint")}
           </p>
           <input
             type="number"
@@ -1120,6 +1181,7 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
   onCostOverride: (id: string, v: number) => void; onResetCostOverrides: () => void;
   onChange: (v: number) => void; error: string;
 }) {
+  const { language, t } = useLanguage();
   const showAnalysis = value > 0;
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -1179,9 +1241,9 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <IndianRupee className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">How much can you invest?</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.capTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-          Tell us what you can put in from your own pocket. We'll show exactly what your business needs, where the money will go, and how much funding is actually required.
+          {t("onboarding.capSubtitle")}
         </p>
       </div>
 
@@ -1205,9 +1267,9 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
 
       {/* Other funding (family / partner / grants) — reduces the funding gap */}
       <div className="mb-6 rounded-xl border border-border bg-white p-4">
-        <p className="text-sm font-semibold text-foreground mb-0.5">Other funding (optional)</p>
+        <p className="text-sm font-semibold text-foreground mb-0.5">{t("onboarding.capOtherFundingTitle")}</p>
         <p className="text-xs text-muted-foreground mb-3">
-          Family, partner or grant money you can add beyond your own savings. It directly reduces the funding gap.
+          {t("onboarding.capOtherFundingSub")}
         </p>
         <input
           type="number"
@@ -1226,33 +1288,57 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
             <Wallet className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground leading-tight">Your business investment</p>
+            <p className="text-sm font-bold text-foreground leading-tight">{t("onboarding.capInvestmentHeading")}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Three reference levels for {business ? `${business.name}${subCategory ? ` — ${subCategory.name}` : ""}` : "your business"}. Tap one to set your starting scale.
+              {t("onboarding.capInvestmentSub", {
+                business: language === "hi"
+                  ? (business ? `${business.nameHi}${subCategory ? ` — ${subCategory.nameHi}` : ""}` : "व्यवसाय")
+                  : (business ? `${business.name}${subCategory ? ` — ${subCategory.name}` : ""}` : "your business"),
+              })}
             </p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {TIER_CARDS.map((t) => (
-            <button key={t.value} onClick={() => onScaleChange(t.value)}
+          {TIER_CARDS.map((tc) => (
+            <button key={tc.value} onClick={() => onScaleChange(tc.value)}
               className={cn(
                 "rounded-xl border p-3.5 text-left transition-all",
-                scaleChoice === t.value
+                scaleChoice === tc.value
                   ? "border-primary bg-primary/5 shadow-sm"
                   : "border-border bg-white hover:border-primary/40",
               )}>
-              <p className="text-sm font-semibold">{t.label}</p>
-              <p className="text-lg font-bold text-foreground mt-1">{formatIndianCurrency(tiers[t.tierKey])}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{t.hint}</p>
+              <p className="text-sm font-semibold">
+                {language === "hi"
+                  ? (tc.value === "small" ? t("onboarding.capTierMinLabel") : tc.value === "recommended" ? t("onboarding.capTierRecLabel") : t("onboarding.capTierExpLabel"))
+                  : tc.label}
+              </p>
+              <p className="text-lg font-bold text-foreground mt-1">{formatIndianCurrency(tiers[tc.tierKey])}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {language === "hi"
+                  ? (tc.value === "small" ? t("onboarding.capTierMinHint") : tc.value === "recommended" ? t("onboarding.capTierRecHint") : t("onboarding.capTierExpHint"))
+                  : tc.hint}
+              </p>
             </button>
           ))}
         </div>
         {showAnalysis && (
           <div className="mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-xs">
-            <span className="font-bold text-foreground">Recommended for you: {rec.label}.</span>{" "}
-            <span className="text-muted-foreground">{rec.reason}</span>
+            <span className="font-bold text-foreground">
+              {t("onboarding.capRecBadge", {
+                label: language === "hi"
+                  ? (rec.scale === "small" ? t("onboarding.capTierMinLabel") : rec.scale === "recommended" ? t("onboarding.capTierRecLabel") : t("onboarding.capTierExpLabel"))
+                  : rec.label,
+                reason: rec.reason,
+              })}
+            </span>{" "}
             {rec.scale !== scaleChoice && (
-              <span className="block mt-1 font-semibold text-primary">Tip: switch your starting scale to {rec.label} to match your funding.</span>
+              <span className="block mt-1 font-semibold text-primary">
+                {t("onboarding.capRecSwitchTip", {
+                  label: language === "hi"
+                    ? (rec.scale === "small" ? t("onboarding.capTierMinLabel") : rec.scale === "recommended" ? t("onboarding.capTierRecLabel") : t("onboarding.capTierExpLabel"))
+                    : rec.label,
+                })}
+              </span>
             )}
           </div>
         )}
@@ -1265,8 +1351,8 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
             <div className="px-4 pt-4 pb-2">
               <SectionTitle
                 icon={<BarChart3 className="h-4 w-4" />}
-                title="Where the money will go"
-                subtitle="Estimated setup cost breakdown for this business — edit any line and everything recalculates."
+                title={t("onboarding.capWhereMoneyTitle")}
+                subtitle={t("onboarding.capWhereMoneySub")}
               />
             </div>
             <div className="divide-y divide-border/60 text-sm">
@@ -1279,10 +1365,9 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold text-foreground flex flex-wrap items-center gap-2">
-                          {c.label}
+                          {language === "hi" ? (c.labelHi || c.label) : c.label}
                           <PriorityBadge priority={c.priority} />
                         </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{c.labelHi}</p>
                       </div>
                       <div className="flex-shrink-0 text-right">
                         {isEditing ? (
@@ -1297,10 +1382,10 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                               onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }}
                               className="w-28 rounded-lg border border-border px-2.5 py-1.5 text-sm text-right focus:border-primary focus:outline-none"
                             />
-                            <button onClick={saveEdit} className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors" aria-label="Save">
+                            <button onClick={saveEdit} className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors" aria-label={t("onboarding.capSaveBtn")}>
                               <Check className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => setEditing(null)} className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors" aria-label="Cancel">
+                            <button onClick={() => setEditing(null)} className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors" aria-label={t("onboarding.capCancelBtn")}>
                               <X className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -1312,7 +1397,7 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                             </div>
                             <button onClick={() => startEdit(c.id, c.amount)}
                               className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
-                              <Edit3 className="h-3 w-3" /> Edit
+                              <Edit3 className="h-3 w-3" /> {t("onboarding.capEditBtn")}
                             </button>
                           </div>
                         )}
@@ -1322,15 +1407,15 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                 );
               })}
               <div className="px-4 py-3 bg-[#F4F8EF] flex items-center justify-between gap-3">
-                <p className="text-sm font-bold">Total estimated setup</p>
+                <p className="text-sm font-bold">{t("onboarding.capTotalSetup")}</p>
                 <p className="text-lg font-extrabold text-foreground">{formatIndianCurrency(totalRequired)}</p>
               </div>
             </div>
             <div className="border-t border-border/60 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] text-muted-foreground">Your edits adjust the total, the funding gap and every downstream calculation.</p>
+              <p className="text-[11px] text-muted-foreground">{t("onboarding.capEditsAdjust")}</p>
               {hasOverrides && (
                 <button onClick={onResetCostOverrides} className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
-                  <RotateCcw className="h-3 w-3" /> Reset to estimates
+                  <RotateCcw className="h-3 w-3" /> {language === "hi" ? "अनुमानित पर रीसेट करें" : "Reset to estimates"}
                 </button>
               )}
             </div>
@@ -1340,30 +1425,32 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
           <div className="rounded-xl border border-border bg-white p-4">
             <SectionTitle
               icon={<Wallet className="h-4 w-4" />}
-              title={`How your ${formatIndianCurrency(value)} can be used`}
-              subtitle="Filled in priority order — essential costs first, then working capital, then optional extras."
+              title={language === "hi" ? `आपकी ${formatIndianCurrency(value)} की पूंजी का उपयोग` : `How your ${formatIndianCurrency(value)} can be used`}
+              subtitle={language === "hi" ? "प्राथमिकता के क्रम में — पहले आवश्यक खर्च, फिर कार्यशील पूंजी, फिर अन्य।" : "Filled in priority order — essential costs first, then working capital, then optional extras."}
             />
             <div className="mt-3 divide-y divide-border/60 text-sm">
               {allocation.rows.filter((r) => r.allocated > 0).map((r) => (
                 <div key={r.id} className="flex items-center justify-between gap-3 py-2.5">
                   <span className="flex items-center gap-2 text-muted-foreground">
-                    {r.label}
+                    {language === "hi" ? (r.labelHi || r.label) : r.label}
                     <PriorityBadge priority={r.priority} />
                   </span>
                   <span className="text-right font-semibold">
                     {formatIndianCurrency(r.allocated)}
-                    <span className="block text-[10px] text-muted-foreground">{Math.round(r.pctOfCapital * 100)}% of your capital</span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {language === "hi" ? `आपकी पूंजी का ${Math.round(r.pctOfCapital * 100)}%` : `${Math.round(r.pctOfCapital * 100)}% of your capital`}
+                    </span>
                   </span>
                 </div>
               ))}
               {allocation.remaining > 0 && (
                 <div className="flex items-center justify-between gap-3 py-2.5">
-                  <span className="text-muted-foreground">Kept unspent (buffer)</span>
+                  <span className="text-muted-foreground">{language === "hi" ? "अतिरिक्त सुरक्षित राशि (बफर)" : "Kept unspent (buffer)"}</span>
                   <span className="text-right font-semibold text-emerald-600">{formatIndianCurrency(allocation.remaining)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between gap-3 py-2.5">
-                <span className="font-bold">Your contribution</span>
+                <span className="font-bold">{t("onboarding.revContribution")}</span>
                 <span className="font-extrabold">{formatIndianCurrency(value)}</span>
               </div>
             </div>
@@ -1383,7 +1470,9 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                 fit.level === "sufficient" ? "text-emerald-600" :
                 fit.level === "partial" ? "text-amber-600" : "text-red-600",
               )} />
-              Capital fit: {fit.icon} {fit.label} — covers {fit.coveragePct}% of the setup
+              {language === "hi"
+                ? `पूंजी उपयुक्तता: ${fit.icon} ${fit.label} — सेटअप का ${fit.coveragePct}% कवर होता है`
+                : `Capital fit: ${fit.icon} ${fit.label} — covers ${fit.coveragePct}% of the setup`}
             </p>
             <p className="mt-1.5 text-xs text-muted-foreground">{fit.explanation}</p>
           </div>
@@ -1392,13 +1481,13 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
           <div className="rounded-xl border border-border bg-white p-4">
             <SectionTitle
               icon={<ListChecks className="h-4 w-4" />}
-              title="Must spend, can optimize, defer"
-              subtitle="What truly needs to be in place on day one, vs what can wait until the business grows."
+              title={language === "hi" ? "अनिवार्य खर्च, सुधार योग्य और बाद के खर्च" : "Must spend, can optimize, defer"}
+              subtitle={language === "hi" ? "पहले दिन क्या होना आवश्यक है, और व्यवसाय बढ़ने तक क्या टाला जा सकता है।" : "What truly needs to be in place on day one, vs what can wait until the business grows."}
             />
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <PriorityGroup title="MUST HAVE" tone="emerald" note="Required to start" items={essentialComps.map((c) => c.label)} />
-              <PriorityGroup title="CAN OPTIMIZE" tone="amber" note="Strongly recommended — trim if needed" items={importantComps.map((c) => c.label)} />
-              <PriorityGroup title="DEFER UNTIL GROWTH" tone="zinc" note="Add later when revenue supports it" items={optionalComps.map((c) => c.label)} />
+              <PriorityGroup title={language === "hi" ? "अनिवार्य" : "MUST HAVE"} tone="emerald" note={language === "hi" ? "शुरुआत के लिए आवश्यक" : "Required to start"} items={essentialComps.map((c) => language === "hi" ? (c.labelHi || c.label) : c.label)} />
+              <PriorityGroup title={language === "hi" ? "सुधार योग्य" : "CAN OPTIMIZE"} tone="amber" note={language === "hi" ? "अनुशंसित — आवश्यकतानुसार कम करें" : "Strongly recommended — trim if needed"} items={importantComps.map((c) => language === "hi" ? (c.labelHi || c.label) : c.label)} />
+              <PriorityGroup title={language === "hi" ? "बाद में जोड़ें" : "DEFER UNTIL GROWTH"} tone="zinc" note={language === "hi" ? "कमाई शुरू होने के बाद जोड़ें" : "Add later when revenue supports it"} items={optionalComps.map((c) => language === "hi" ? (c.labelHi || c.label) : c.label)} />
             </div>
           </div>
 
@@ -1406,10 +1495,14 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
           {surplus > 0 && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
               <p className="text-sm font-bold text-emerald-800">
-                You have {formatIndianCurrency(surplus)} more than the minimum start ({formatIndianCurrency(tiers.minimum)})
+                {language === "hi"
+                  ? `आपके पास न्यूनतम शुरुआत (${formatIndianCurrency(tiers.minimum)}) से ${formatIndianCurrency(surplus)} अधिक हैं`
+                  : `You have ${formatIndianCurrency(surplus)} more than the minimum start (${formatIndianCurrency(tiers.minimum)})`}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                You don't have to spend it all. A sensible way to use the extra money:
+                {language === "hi"
+                  ? "इसे पूरा खर्च करना जरूरी नहीं है। अतिरिक्त राशि के उपयोग का सुझाव:"
+                  : "You don't have to spend it all. A sensible way to use the extra money:"}
               </p>
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {surplusUses.map((u) => (
@@ -1422,7 +1515,11 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-emerald-700/70">Suggested split — you decide. Keeping an emergency buffer is always recommended.</p>
+              <p className="mt-2 text-[11px] text-emerald-700/70">
+                {language === "hi"
+                  ? "सुझाया गया विभाजन — अंतिम निर्णय आपका है। आपातकालीन बफर रखना हमेशा समझदारी है।"
+                  : "Suggested split — you decide. Keeping an emergency buffer is always recommended."}
+              </p>
             </div>
           )}
 
@@ -1430,14 +1527,14 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
           <div className="rounded-xl border border-border bg-white p-4">
             <SectionTitle
               icon={<BarChart3 className="h-4 w-4" />}
-              title="Where your money goes"
-              subtitle="Share of the estimated setup requirement by cost line."
+              title={language === "hi" ? "पैसा कहाँ जाता है" : "Where your money goes"}
+              subtitle={language === "hi" ? "लागत मद के अनुसार अनुमानित आवश्यकता का हिस्सा।" : "Share of the estimated setup requirement by cost line."}
             />
             <div className="mt-4 space-y-2.5">
               {visibleComponents.map((c) => (
                 <div key={c.id}>
                   <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-medium text-muted-foreground">{c.label}</span>
+                    <span className="font-medium text-muted-foreground">{language === "hi" ? (c.labelHi || c.label) : c.label}</span>
                     <span className="font-semibold">{formatIndianCurrency(c.amount)} · {totalRequired > 0 ? Math.round((c.amount / totalRequired) * 100) : 0}%</span>
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-muted">
@@ -1448,9 +1545,9 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
               ))}
             </div>
             <div className="mt-5 border-t border-border/60 pt-4">
-              <p className="mb-2 text-xs font-bold">Your funding vs total required</p>
+              <p className="mb-2 text-xs font-bold">{language === "hi" ? "आपकी फंडिंग बनाम कुल आवश्यकता" : "Your funding vs total required"}</p>
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="w-24 flex-shrink-0 text-muted-foreground">Your funding</span>
+                <span className="w-24 flex-shrink-0 text-muted-foreground">{language === "hi" ? "आपकी फंडिंग" : "Your funding"}</span>
                 <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-emerald-500"
                     style={{ width: `${totalRequired > 0 ? Math.min(100, (totalAvailable / totalRequired) * 100) : 0}%` }} />
@@ -1458,7 +1555,7 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
                 <span className="w-24 flex-shrink-0 text-right font-semibold">{formatIndianCurrency(totalAvailable)}</span>
               </div>
               <div className="mt-2 flex items-center gap-2 text-[11px]">
-                <span className="w-24 flex-shrink-0 text-muted-foreground">Setup needs</span>
+                <span className="w-24 flex-shrink-0 text-muted-foreground">{language === "hi" ? "सेटअप की जरूरत" : "Setup needs"}</span>
                 <div className="flex h-3.5 flex-1 overflow-hidden rounded-full bg-muted">
                   {value > 0 && <div className="h-full bg-emerald-500" style={{ width: `${totalRequired > 0 ? (value / totalRequired) * 100 : 0}%` }} />}
                   {(otherFunding || 0) > 0 && <div className="h-full bg-sky-500" style={{ width: `${totalRequired > 0 ? ((otherFunding || 0) / totalRequired) * 100 : 0}%` }} />}
@@ -1469,17 +1566,17 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
                 {value > 0 && (
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Your capital {formatIndianCurrency(value)}
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> {t("onboarding.capYourCapital")} {formatIndianCurrency(value)}
                   </span>
                 )}
                 {(otherFunding || 0) > 0 && (
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full bg-sky-500" /> Other funding {formatIndianCurrency(otherFunding)}
+                    <span className="inline-block h-2 w-2 rounded-full bg-sky-500" /> {t("onboarding.capOtherFundingLabel")} {formatIndianCurrency(otherFunding)}
                   </span>
                 )}
                 {fundingGap > 0 && (
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> Funding gap {formatIndianCurrency(fundingGap)}
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> {t("onboarding.capFundingGapLabel")} {formatIndianCurrency(fundingGap)}
                   </span>
                 )}
               </div>
@@ -1492,7 +1589,7 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
       ) : (
         <div className="rounded-xl bg-muted/50 border border-border/60 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            💡 Don't worry about the exact amount. Enter your capital and we'll show exactly where it goes, how much funding is needed and which scale fits your situation.
+            {t("onboarding.capEmptyHint")}
           </p>
         </div>
       )}
@@ -1501,14 +1598,20 @@ function CapitalStep({ value, business, subCategory, placeStatus, rentMonthly, s
 }
 
 function PriorityBadge({ priority }: { priority: CostPriority }) {
+  const { t } = useLanguage();
+  const label =
+    priority === "essential" ? t("onboarding.capPriorityEssential") :
+    priority === "important" ? t("onboarding.capPriorityImportant") :
+    t("onboarding.capPriorityOptional");
   return (
     <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide", PRIORITY_BADGE[priority])}>
-      {priority}
+      {label}
     </span>
   );
 }
 
 function SourceTag({ source }: { source: string }) {
+  const { t } = useLanguage();
   const styles: Record<string, string> = {
     CALCULATED: "bg-emerald-50 text-emerald-700",
     ESTIMATED: "bg-amber-50 text-amber-700",
@@ -1516,9 +1619,10 @@ function SourceTag({ source }: { source: string }) {
     "YOUR ADJUSTMENT": "bg-violet-50 text-violet-700",
   };
   const label =
-    source === "YOUR ADJUSTMENT" ? "You set this" :
-    source === "USER_PROVIDED" ? "You provided" :
-    source === "CALCULATED" ? "Calculated" : "Estimated";
+    source === "YOUR ADJUSTMENT" ? t("onboarding.capTagAdjustment") :
+    source === "USER_PROVIDED" ? t("onboarding.capTagProvided") :
+    source === "CALCULATED" ? t("onboarding.capTagCalculated") :
+    t("onboarding.capTagEstimated");
   return (
     <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide", styles[source] ?? styles.ESTIMATED)}>
       {label}
@@ -1541,43 +1645,45 @@ function SectionTitle({ icon, title, subtitle }: { icon: React.ReactNode; title:
 function FundingGapCard({ totalRequired, value, otherFunding, fundingGap, remainingCapital }: {
   totalRequired: number; value: number; otherFunding: number; fundingGap: number; remainingCapital: number;
 }) {
+  const { t } = useLanguage();
   if (fundingGap <= 0) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-        <p className="text-sm font-bold text-emerald-800">✅ No funding gap</p>
+        <p className="text-sm font-bold text-emerald-800">{t("onboarding.capNoGapTitle")}</p>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Your funding ({formatIndianCurrency(value + Math.max(0, otherFunding))}) covers the estimated setup requirement ({formatIndianCurrency(totalRequired)}).
-          {remainingCapital > 0 && <> You have <span className="font-bold text-emerald-700">{formatIndianCurrency(remainingCapital)}</span> left over — keep it as an emergency buffer or use it for working capital.</>}{" "}
-          No loan is recommended under current assumptions.
+          {t("onboarding.capNoGapDesc", {
+            funding: formatIndianCurrency(value + Math.max(0, otherFunding)),
+            total: formatIndianCurrency(totalRequired),
+          })}
         </p>
       </div>
     );
   }
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-      <p className="text-sm font-bold text-amber-800">💰 Funding gap: {formatIndianCurrency(fundingGap)}</p>
+      <p className="text-sm font-bold text-amber-800">{t("onboarding.capFundingGapTitle", { gap: formatIndianCurrency(fundingGap) })}</p>
       <div className="mt-2 divide-y divide-border/60 rounded-lg border border-amber-100 bg-white text-xs">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-muted-foreground">Total required investment</span>
+          <span className="text-muted-foreground">{t("onboarding.capTotalReqInvest")}</span>
           <span className="font-semibold">{formatIndianCurrency(totalRequired)}</span>
         </div>
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-muted-foreground">Your capital</span>
+          <span className="text-muted-foreground">{t("onboarding.capYourCapital")}</span>
           <span className="font-semibold">− {formatIndianCurrency(value)}</span>
         </div>
         {(otherFunding || 0) > 0 && (
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-muted-foreground">Other funding</span>
+            <span className="text-muted-foreground">{t("onboarding.capOtherFundingLabel")}</span>
             <span className="font-semibold">− {formatIndianCurrency(otherFunding)}</span>
           </div>
         )}
         <div className="flex items-center justify-between bg-amber-50/60 px-3 py-2">
-          <span className="font-bold">Funding gap</span>
+          <span className="font-bold">{t("onboarding.capFundingGapLabel")}</span>
           <span className="font-extrabold text-amber-800">{formatIndianCurrency(fundingGap)}</span>
         </div>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Possible funding need: Loan / Scheme / Partner / Other funding. We'll show loan options and EMI in the next steps.
+        {t("onboarding.capPossibleFunding")}
       </p>
     </div>
   );
@@ -1586,6 +1692,7 @@ function FundingGapCard({ totalRequired, value, otherFunding, fundingGap, remain
 function PriorityGroup({ title, tone, note, items }: {
   title: string; tone: "emerald" | "amber" | "zinc"; note: string; items: string[];
 }) {
+  const { language } = useLanguage();
   const tones: Record<string, string> = {
     emerald: "border-emerald-200 bg-emerald-50/60 text-emerald-700",
     amber: "border-amber-200 bg-amber-50/60 text-amber-700",
@@ -1600,7 +1707,7 @@ function PriorityGroup({ title, tone, note, items }: {
           {items.map((it) => <li key={it}>• {it}</li>)}
         </ul>
       ) : (
-        <p className="text-[11px] text-muted-foreground">Nothing here for this business</p>
+        <p className="text-[11px] text-muted-foreground">{language === "hi" ? "इस व्यवसाय के लिए यहाँ कोई जानकारी नहीं है" : "Nothing here for this business"}</p>
       )}
     </div>
   );
@@ -1611,29 +1718,39 @@ function EstimateDetails({ business, subCategory, placeStatus, rentMonthly, scal
   placeStatus: PlaceStatus; rentMonthly: number; scaleChoice: ScaleChoice;
   breakdown: CostBreakdown; costOverrides: Record<string, number>;
 }) {
+  const { language, t } = useLanguage();
+  const isHi = language === "hi";
+  const scaleOpt = SCALE_OPTIONS.find((s) => s.value === scaleChoice);
+  const scaleLabel = isHi
+    ? (scaleChoice === "small" ? "न्यूनतम शुरुआत" : scaleChoice === "expanded" ? "विस्तृत सेटअप" : "अनुशंसित सेटअप")
+    : (scaleOpt?.label || "Recommended");
+  const placeLabel = isHi
+    ? (PLACE_STATUS_OPTIONS.find((o) => o.value === placeStatus)?.labelHi || PLACE_LABELS[placeStatus])
+    : PLACE_LABELS[placeStatus];
+
   return (
     <details className="rounded-xl border border-border bg-white px-4 py-3">
       <summary className="flex cursor-pointer select-none items-center gap-1.5 text-sm font-semibold text-primary">
-        <HelpCircle className="h-4 w-4" /> How did GramUdaan estimate this?
+        <HelpCircle className="h-4 w-4" /> {t("onboarding.capEstimateHeading")}
       </summary>
       <div className="mt-3 space-y-3 text-xs">
         <div>
-          <p className="mb-1 font-bold text-foreground">This estimate is based on:</p>
+          <p className="mb-1 font-bold text-foreground">{isHi ? "यह अनुमान इन बातों पर आधारित है:" : "This estimate is based on:"}</p>
           <ul className="list-none space-y-1 text-muted-foreground">
-            <li>• Selected business: {business?.name}{subCategory ? ` — ${subCategory.name}` : ""}</li>
-            <li>• Starting scale: {SCALE_OPTIONS.find((s) => s.value === scaleChoice)?.label}</li>
-            <li>• Place arrangement: {PLACE_LABELS[placeStatus]}{placeStatus === "rent" && rentMonthly > 0 ? ` (₹${rentMonthly.toLocaleString("en-IN")}/month rent)` : ""}</li>
-            <li>• Equipment, initial inventory and working-capital requirements for this business type</li>
-            <li>• Your contribution{Object.keys(costOverrides).length > 0 ? " and your cost adjustments" : ""}</li>
+            <li>• {isHi ? "चयनित व्यवसाय:" : "Selected business:"} {isHi ? (business?.nameHi || business?.name) : business?.name}{subCategory ? ` — ${isHi ? subCategory.nameHi : subCategory.name}` : ""}</li>
+            <li>• {isHi ? "शुरुआती स्तर:" : "Starting scale:"} {scaleLabel}</li>
+            <li>• {isHi ? "स्थान व्यवस्था:" : "Place arrangement:"} {placeLabel}{placeStatus === "rent" && rentMonthly > 0 ? ` (₹${rentMonthly.toLocaleString("en-IN")}/${isHi ? "माह किराया" : "month rent"})` : ""}</li>
+            <li>• {isHi ? "उपकरण, प्रारंभिक इन्वेंट्री और कार्यशील पूंजी आवश्यकताएं" : "Equipment, initial inventory and working-capital requirements for this business type"}</li>
+            <li>• {isHi ? "आपका योगदान" : "Your contribution"}{Object.keys(costOverrides).length > 0 ? (isHi ? " और आपके लागत समायोजन" : " and your cost adjustments") : ""}</li>
           </ul>
         </div>
         <div>
-          <p className="mb-1 font-bold text-foreground">How each figure was derived:</p>
+          <p className="mb-1 font-bold text-foreground">{isHi ? "प्रत्येक आंकड़े की गणना:" : "How each figure was derived:"}</p>
           <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60">
             {breakdown.components.filter((c) => c.amount > 0).map((c) => (
               <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2">
                 <span className="flex items-center gap-2 text-muted-foreground">
-                  {c.label}
+                  {isHi ? (c.labelHi || c.label) : c.label}
                   <SourceTag source={costOverrides[c.id] !== undefined ? "YOUR ADJUSTMENT" : c.source} />
                 </span>
                 <span className="font-semibold">{formatIndianCurrency(c.amount)}</span>
@@ -1643,14 +1760,14 @@ function EstimateDetails({ business, subCategory, placeStatus, rentMonthly, scal
         </div>
         {breakdown.notes.length > 0 && (
           <div>
-            <p className="mb-1 font-bold text-foreground">Important notes:</p>
+            <p className="mb-1 font-bold text-foreground">{isHi ? "महत्वपूर्ण बिंदु:" : "Important notes:"}</p>
             <ul className="list-none space-y-1 text-muted-foreground">
               {breakdown.notes.map((n, i) => <li key={i}>• {n}</li>)}
             </ul>
           </div>
         )}
         <p className="text-[11px] text-muted-foreground/80">
-          These are preliminary estimates for decision support — not exact quotes. Actual costs depend on local prices, supplier quotations and your final choices. Verify with a local supplier or bank before committing.
+          {t("onboarding.capEstimateSub")}
         </p>
       </div>
     </details>
@@ -1663,41 +1780,58 @@ function ReviewStep({ location, radius, business, capital, subCategory, placeSta
   capital: number; subCategory: BusinessSubCategory | null; placeStatus: PlaceStatus; rentMonthly: number; scaleChoice: ScaleChoice; otherFunding: number;
   onEditLocation: () => void; onEditBusiness: () => void; onEditType: () => void; onEditPlace: () => void; onEditCapital: () => void; onEditScale: () => void;
 }) {
+  const { language, t } = useLanguage();
+  const isHi = language === "hi";
+
+  const scaleOpt = SCALE_OPTIONS.find((s) => s.value === scaleChoice);
+  const scaleDisplay = isHi
+    ? (scaleChoice === "small" ? "न्यूनतम शुरुआत" : scaleChoice === "expanded" ? "विस्तृत सेटअप" : "अनुशंसित सेटअप")
+    : (scaleOpt?.label || "Recommended");
+  const scaleHint = isHi
+    ? (scaleChoice === "small" ? "कम लागत और न्यूनतम जोखिम" : scaleChoice === "expanded" ? "अधिक क्षमता और स्टॉक" : "संतुलित और व्यावहारिक")
+    : scaleOpt?.hint;
+
+  const placeDisplay = isHi
+    ? (PLACE_STATUS_OPTIONS.find((o) => o.value === placeStatus)?.labelHi || PLACE_LABELS[placeStatus])
+    : PLACE_LABELS[placeStatus];
+
+  const editLabel = t("onboarding.revEdit");
+
   return (
     <div className="animate-fade-in">
       <div className="text-center mb-8">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <CheckCircle2 className="h-6 w-6" />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold">Review Your Selection</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Double-check everything before we run the analysis</p>
+        <h2 className="text-2xl sm:text-3xl font-bold">{t("onboarding.revTitle")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("onboarding.revSubtitle")}</p>
       </div>
       <div className="space-y-3">
-        <ReviewRow icon={<MapPin className="h-4 w-4" />} label="Location"
-          value={location ? `${location.name}, ${location.district}, ${location.state}` : "Not selected"}
-          sub={location ? `${radius} km analysis radius` : undefined} onEdit={onEditLocation} />
-        <ReviewRow icon={<Store className="h-4 w-4" />} label="Business"
-          value={business ? `${business.icon} ${business.name}` : "Not selected"}
-          sub={business?.description} onEdit={onEditBusiness} />
-        <ReviewRow icon={<SlidersHorizontal className="h-4 w-4" />} label="Business Type"
-          value={subCategory ? `${subCategory.icon} ${subCategory.name}` : "Not selected"}
-          sub={subCategory?.description} onEdit={onEditType} />
-        <ReviewRow icon={<Building2 className="h-4 w-4" />} label="Place / Workspace"
-          value={PLACE_LABELS[placeStatus]}
-          sub={placeStatus === "rent" ? `Monthly rent: ${formatIndianCurrency(rentMonthly || 0)}` : undefined} onEdit={onEditPlace} />
-        <ReviewRow icon={<TrendingUp className="h-4 w-4" />} label="Scale"
-          value={SCALE_OPTIONS.find((s) => s.value === scaleChoice)?.label || "Recommended"}
-          sub={SCALE_OPTIONS.find((s) => s.value === scaleChoice)?.hint} onEdit={onEditScale} />
-        <ReviewRow icon={<IndianRupee className="h-4 w-4" />} label="Your Contribution"
-          value={capital > 0 ? formatIndianCurrency(capital) : "Not entered"}
-          sub={otherFunding > 0 ? `+ ${formatIndianCurrency(otherFunding)} other funding (family/partner/grant)` : "Amount you can contribute from savings"} onEdit={onEditCapital} />
+        <ReviewRow icon={<MapPin className="h-4 w-4" />} label={t("onboarding.revLocation")}
+          value={location ? `${location.name}, ${location.district}, ${location.state}` : t("onboarding.revNotSelected")}
+          sub={location ? `${radius} ${isHi ? "किमी" : "km"} ${t("onboarding.revAnalysisRadius")}` : undefined} onEdit={onEditLocation} editLabel={editLabel} />
+        <ReviewRow icon={<Store className="h-4 w-4" />} label={t("onboarding.revBusiness")}
+          value={business ? `${business.icon} ${isHi ? business.nameHi : business.name}` : t("onboarding.revNotSelected")}
+          sub={isHi ? (business?.descriptionHi || business?.description) : business?.description} onEdit={onEditBusiness} editLabel={editLabel} />
+        <ReviewRow icon={<SlidersHorizontal className="h-4 w-4" />} label={t("onboarding.revBusinessType")}
+          value={subCategory ? `${subCategory.icon} ${isHi ? subCategory.nameHi : subCategory.name}` : t("onboarding.revNotSelected")}
+          sub={isHi ? (subCategory?.descriptionHi || subCategory?.description) : subCategory?.description} onEdit={onEditType} editLabel={editLabel} />
+        <ReviewRow icon={<Building2 className="h-4 w-4" />} label={t("onboarding.revPlace")}
+          value={placeDisplay}
+          sub={placeStatus === "rent" ? t("onboarding.revMonthlyRent", { rent: formatIndianCurrency(rentMonthly || 0) }) : undefined} onEdit={onEditPlace} editLabel={editLabel} />
+        <ReviewRow icon={<TrendingUp className="h-4 w-4" />} label={t("onboarding.revScale")}
+          value={scaleDisplay}
+          sub={scaleHint} onEdit={onEditScale} editLabel={editLabel} />
+        <ReviewRow icon={<IndianRupee className="h-4 w-4" />} label={t("onboarding.revContribution")}
+          value={capital > 0 ? formatIndianCurrency(capital) : t("onboarding.revNotEntered")}
+          sub={otherFunding > 0 ? t("onboarding.revOtherFundingSub", { amount: formatIndianCurrency(otherFunding) }) : t("onboarding.revFromSavings")} onEdit={onEditCapital} editLabel={editLabel} />
       </div>
     </div>
   );
 }
 
-function ReviewRow({ icon, label, value, sub, onEdit }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string; onEdit: () => void;
+function ReviewRow({ icon, label, value, sub, onEdit, editLabel }: {
+  icon: React.ReactNode; label: string; value: string; sub?: string; onEdit: () => void; editLabel: string;
 }) {
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-white p-4 transition-all hover:shadow-sm">
@@ -1708,7 +1842,7 @@ function ReviewRow({ icon, label, value, sub, onEdit }: {
         {sub && <p className="text-xs text-muted-foreground mt-0.5 truncate">{sub}</p>}
       </div>
       <button onClick={onEdit} className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
-        <Edit3 className="h-3 w-3" /> Edit
+        <Edit3 className="h-3 w-3" /> {editLabel}
       </button>
     </div>
   );
@@ -1716,17 +1850,18 @@ function ReviewRow({ icon, label, value, sub, onEdit }: {
 
 /* ─── Professional Analysis Loading Experience ─── */
 function AnalysisLoader({ businessName, locationName }: { businessName: string; locationName: string }) {
+  const { t } = useLanguage();
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showComplete, setShowComplete] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const steps = [
-    `Understanding your location (${locationName})`,
-    "Checking your business setup & place",
-    "Estimating setup cost and capital use",
-    "Calculating revenue, expenses and profit",
-    "Projecting profit timeline & break-even",
-    "Assessing risk, alternatives & recommendation",
+    t("onboarding.loadStep1", { location: locationName }),
+    t("onboarding.loadStep2"),
+    t("onboarding.loadStep3"),
+    t("onboarding.loadStep4"),
+    t("onboarding.loadStep5"),
+    t("onboarding.loadStep6"),
   ];
 
   useEffect(() => {
@@ -1752,9 +1887,9 @@ function AnalysisLoader({ businessName, locationName }: { businessName: string; 
             <div className="h-16 w-16 rounded-full bg-emerald-100 mx-auto mb-4 flex items-center justify-center" style={{ animation: "checkPop 0.5s ease-out" }}>
               <Check className="h-8 w-8 text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold text-foreground font-serif-display">Analysis Ready</h2>
+            <h2 className="text-xl font-bold text-foreground font-serif-display">{t("onboarding.loadReadyTitle")}</h2>
             <p className="text-sm text-muted-foreground mt-2">
-              Your {businessName} feasibility report is ready. Taking you to the dashboard...
+              {t("onboarding.loadReadyDesc", { business: businessName })}
             </p>
           </div>
         </div>
@@ -1767,9 +1902,9 @@ function AnalysisLoader({ businessName, locationName }: { businessName: string; 
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-border bg-white p-8 shadow-xl animate-scale-in">
           <div className="text-center mb-6">
-            <h2 className="text-xl font-bold text-foreground font-serif-display">Analyzing Your Business</h2>
+            <h2 className="text-xl font-bold text-foreground font-serif-display">{t("onboarding.loadAnalyzingTitle")}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              We're evaluating your location, market demand, competition, risks and financial fit.
+              {t("onboarding.loadAnalyzingSub")}
             </p>
           </div>
           <div className="space-y-3">
@@ -1799,7 +1934,7 @@ function AnalysisLoader({ businessName, locationName }: { businessName: string; 
           <div className="mt-6 h-1.5 rounded-full bg-muted overflow-hidden">
             <div className="h-full bg-primary rounded-full transition-all duration-700 ease-out" style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-[11px] text-muted-foreground text-center mt-3">This usually takes a few seconds...</p>
+          <p className="text-[11px] text-muted-foreground text-center mt-3">{t("onboarding.loadWaitHint")}</p>
         </div>
       </div>
     </div>

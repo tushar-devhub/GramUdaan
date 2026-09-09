@@ -8,6 +8,9 @@ import { locations } from "@/data/locations";
 import { businessCategories } from "@/data/businesses";
 import { generateFeasibility } from "@/data/feasibility";
 
+import type { CanonicalAnalysisResult } from "@/types/dataIntegration";
+import { buildCanonicalAnalysisResult } from "@/services/api/dataIntegrationService";
+
 export interface FeasibilityOptions {
   subCategoryId?: string | null;
   placeStatus?: PlaceStatus;
@@ -36,6 +39,7 @@ interface OnboardingState {
    *  (onboarding → plan → dashboard → report → advisor). */
   costOverrides: Record<string, number>;
   feasibility: FeasibilityData | null;
+  analysisResult: CanonicalAnalysisResult | null;
   isAnalyzing: boolean;
 }
 
@@ -54,7 +58,9 @@ interface OnboardingContextType extends OnboardingState {
   setCostOverride: (id: string, value: number) => void;
   resetCostOverrides: () => void;
   setFeasibility: (f: FeasibilityData | null) => void;
+  setAnalysisResult: (res: CanonicalAnalysisResult | null) => void;
   setIsAnalyzing: (a: boolean) => void;
+  runFullAnalysis: (convexClient?: any) => Promise<CanonicalAnalysisResult | null>;
   reset: () => void;
   loadDemo: (demo: DemoScenario) => void;
 }
@@ -73,6 +79,7 @@ const defaultState: OnboardingState = {
   otherFunding: 0,
   costOverrides: {},
   feasibility: null,
+  analysisResult: null,
   isAnalyzing: false,
 };
 
@@ -115,9 +122,50 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, costOverrides: {} }));
   const setFeasibility = (feasibility: FeasibilityData | null) =>
     setState((s) => ({ ...s, feasibility }));
+  const setAnalysisResult = (analysisResult: CanonicalAnalysisResult | null) =>
+    setState((s) => ({ ...s, analysisResult }));
   const setIsAnalyzing = (isAnalyzing: boolean) =>
     setState((s) => ({ ...s, isAnalyzing }));
   const reset = () => setState(defaultState);
+
+  const runFullAnalysis = useCallback(async (convexClient?: any): Promise<CanonicalAnalysisResult | null> => {
+    if (!state.location || !state.business) return null;
+    setIsAnalyzing(true);
+    try {
+      const feasibility = generateFeasibility(state.business.id, state.capital || 50000, state.location.id, state.radius, {
+        subCategoryId: state.subCategory?.id,
+        placeStatus: state.placeStatus,
+        rentMonthly: state.rentMonthly,
+        scaleChoice: state.scaleChoice,
+        businessAnswers: state.businessAnswers,
+      });
+      
+      const canonicalRes = await buildCanonicalAnalysisResult({
+        location: state.location,
+        business: state.business,
+        subCategory: state.subCategory,
+        radiusKm: state.radius,
+        capital: state.capital || 50000,
+        placeStatus: state.placeStatus,
+        rentMonthly: state.rentMonthly,
+        scaleChoice: state.scaleChoice,
+        convexClient,
+      });
+
+      setState((s) => ({
+        ...s,
+        feasibility,
+        analysisResult: canonicalRes,
+        isAnalyzing: false,
+      }));
+
+      return canonicalRes;
+    } catch (err) {
+      console.error("[OnboardingContext] Error building analysis result:", err);
+      setIsAnalyzing(false);
+      return null;
+    }
+  }, [state.location, state.business, state.subCategory, state.radius, state.capital, state.placeStatus, state.rentMonthly, state.scaleChoice, state.businessAnswers]);
 
   const loadDemo = useCallback((demo: DemoScenario) => {
     const loc = locations.find((l) => l.id === demo.locationId) || locations[0];
@@ -150,7 +198,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         setCostOverride,
         resetCostOverrides,
         setFeasibility,
+        setAnalysisResult,
         setIsAnalyzing,
+        runFullAnalysis,
         reset,
         loadDemo,
       }}
@@ -176,7 +226,9 @@ const defaultContextValue: OnboardingContextType = {
   setCostOverride: () => {},
   resetCostOverrides: () => {},
   setFeasibility: () => {},
+  setAnalysisResult: () => {},
   setIsAnalyzing: () => {},
+  runFullAnalysis: async () => null,
   reset: () => {},
   loadDemo: () => {},
 };
@@ -184,3 +236,4 @@ const defaultContextValue: OnboardingContextType = {
 export function useOnboarding() {
   return useContext(OnboardingContext) ?? defaultContextValue;
 }
+

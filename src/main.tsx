@@ -16,6 +16,7 @@ import { CONVEX_URL } from "@/lib/convexUrl";
 // invisible map even though tiles download fine.
 import "leaflet/dist/leaflet.css";
 import { OnboardingProvider } from "./lib/onboarding-context";
+import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import AppShell from "./components/AppShell";
 
@@ -40,12 +41,13 @@ const Plan = lazy(() => import("./pages/Plan.tsx"));
 
 // Loading fallback
 function RouteLoading() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <span className="text-sm font-bold text-primary font-serif-display">GramUdaan</span>
         <div className="h-8 w-8 rounded-full border-2 border-muted border-t-primary animate-spin" />
-        <span className="text-sm text-muted-foreground font-medium">Loading...</span>
+        <span className="text-sm text-muted-foreground font-medium">{t("common.loading")}</span>
       </div>
     </div>
   );
@@ -93,7 +95,7 @@ class RootErrorBoundary extends React.Component<
             <p className="text-sm font-semibold">Preview runtime error</p>
             <p className="mt-2 text-xs text-muted-foreground break-words">
               {this.state.message}
-  </p>
+            </p>
             {this.state.stack && (
               <pre className="mt-3 text-left text-[10px] leading-4 text-muted-foreground/80 max-h-40 overflow-auto rounded border border-border/60 p-2">
                 {this.state.stack}
@@ -141,49 +143,51 @@ createRoot(document.getElementById("root")!).render(
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <RouteSyncer />
-          <OnboardingProvider>
-          <Suspense fallback={<RouteLoading />}>
-            <Routes>
-              {/* ── Public ── */}
-              <Route path="/" element={<Landing />} />
-              <Route
-                path="/auth"
-                element={<AuthPage redirectAfterAuth="/onboarding" />}
-              />
-              {/* Onboarding stays a separate, focused flow (not inside the app shell) */}
-              <Route path="/onboarding" element={<Onboarding />} />
+          <LanguageProvider>
+            <OnboardingProvider>
+              <Suspense fallback={<RouteLoading />}>
+                <Routes>
+                  {/* ── Public Auth ── */}
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/auth" element={<AuthPage redirectAfterAuth="/onboarding" />} />
+                  <Route path="/login" element={<AuthPage redirectAfterAuth="/onboarding" />} />
+                  <Route path="/register" element={<AuthPage redirectAfterAuth="/onboarding" />} />
+                  <Route path="/forgot-password" element={<AuthPage redirectAfterAuth="/onboarding" />} />
+                  {/* Onboarding stays a separate, focused flow (not inside the app shell) */}
+                  <Route path="/onboarding" element={<Onboarding />} />
 
-              {/* ── GramUdaan app (authenticated shell: header, sidebar, bottom nav) ── */}
-              <Route
-                element={
-                  <RequireAuth>
-                    <AppShell />
-                  </RequireAuth>
-                }
-              >
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/advisor" element={<Advisor />} />
-                <Route path="/analysis" element={<Analysis />} />
-                <Route path="/finance" element={<Finance />} />
-                <Route path="/market" element={<Market />} />
-                <Route path="/schemes" element={<Schemes />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/settings" element={<Profile />} />
-                <Route path="/plan" element={<Plan />} />
-                <Route path="/what-if" element={<WhatIf />} />
-                <Route path="/compare" element={<Compare />} />
-                <Route path="/report" element={<Report />} />
-                <Route path="/application" element={<Application />} />
-              </Route>
+                  {/* ── GramUdaan app (authenticated shell: header, sidebar, bottom nav) ── */}
+                  <Route
+                    element={
+                      <RequireAuth>
+                        <AppShell />
+                      </RequireAuth>
+                    }
+                  >
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/advisor" element={<Advisor />} />
+                    <Route path="/analysis" element={<Analysis />} />
+                    <Route path="/finance" element={<Finance />} />
+                    <Route path="/market" element={<Market />} />
+                    <Route path="/schemes" element={<Schemes />} />
+                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/settings" element={<Profile />} />
+                    <Route path="/plan" element={<Plan />} />
+                    <Route path="/what-if" element={<WhatIf />} />
+                    <Route path="/compare" element={<Compare />} />
+                    <Route path="/report" element={<Report />} />
+                    <Route path="/application" element={<Application />} />
+                  </Route>
 
-              <Route path="/saved" element={<Navigate to="/reports" replace />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-          </OnboardingProvider>
-          <VoiceAssistant />
+                  <Route path="/saved" element={<Navigate to="/reports" replace />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+              <VoiceAssistant />
+              <Toaster />
+            </OnboardingProvider>
+          </LanguageProvider>
         </BrowserRouter>
-        <Toaster />
       </ConvexAuthProvider>
     </RootErrorBoundary>
   </StrictMode>,

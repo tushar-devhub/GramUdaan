@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { Location } from "@/data/locations";
 import type { BusinessCategory } from "@/data/businesses";
 import type { FeasibilityData } from "@/data/feasibility-types";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   buildHyperlocalProfile,
   type Confidence,
@@ -26,6 +27,7 @@ export default function HyperlocalIntelligence({
   capital: number;
   radius: number;
 }) {
+  const { t } = useLanguage();
   const profile: HyperlocalMarketProfile | null = useMemo(() => {
     if (!feasibility || !location || !business || capital <= 0) return null;
     return buildHyperlocalProfile({
@@ -43,9 +45,32 @@ export default function HyperlocalIntelligence({
   const demandChip = levelChip(profile.demand.level);
   const impactChipCls = impactChip(profile.locationImpact.direction);
 
+  const impactLabel =
+    profile.locationImpact.direction === "positive"
+      ? t("hyperlocal.impactPositive")
+      : profile.locationImpact.direction === "mixed"
+        ? t("hyperlocal.impactMixed")
+        : t("hyperlocal.impactNegative");
+
+  const demandLevelText =
+    profile.demand.level === "high"
+      ? t("hyperlocal.demandHigh")
+      : profile.demand.level === "moderate-high"
+        ? t("hyperlocal.demandModerateHigh")
+        : profile.demand.level === "moderate"
+          ? t("hyperlocal.demandModerate")
+          : t("hyperlocal.demandLow");
+
+  const densityText =
+    profile.competition.density === "high"
+      ? t("hyperlocal.densityHigh")
+      : profile.competition.density === "medium"
+        ? t("hyperlocal.densityMedium")
+        : t("hyperlocal.densityLow");
+
   return (
     <section
-      aria-label="Hyperlocal Market Intelligence"
+      aria-label={t("hyperlocal.title")}
       className="rounded-2xl border-2 border-border bg-white p-5 sm:p-8"
     >
       {/* Header */}
@@ -55,7 +80,7 @@ export default function HyperlocalIntelligence({
         </div>
         <div>
           <h2 className="text-base font-bold text-foreground font-serif-display">
-            Hyperlocal Market Intelligence
+            {t("hyperlocal.title")}
           </h2>
           <p className="text-xs text-muted-foreground">
             {profile.meta.placeName} · {profile.meta.district}, {profile.meta.state}
@@ -64,17 +89,17 @@ export default function HyperlocalIntelligence({
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground/80 mt-3 max-w-3xl">
-        How your selected location, radius and business category shape local demand, competition and opportunity — every figure below is read from your existing feasibility analysis and labelled with how it was determined.
+        {t("hyperlocal.subtitle")}
       </p>
 
       {/* Score-impact strip */}
       <div className="mt-4 rounded-xl border border-primary/10 bg-primary/[0.03] p-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider", impactChipCls)}>
-            Location impact: {profile.locationImpact.direction}
+            {t("hyperlocal.locationImpact")} {impactLabel}
           </span>
           <span className="text-[11px] text-muted-foreground">
-            Overall score <span className="font-semibold text-foreground">unchanged</span> — the factors below are what feed the existing market / opportunity / competition / risk sub-scores.
+            {t("hyperlocal.scoreUnchanged")}
           </span>
         </div>
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
@@ -104,8 +129,8 @@ export default function HyperlocalIntelligence({
         {/* Demand */}
         <InsightCard
           icon={<Users className="h-4 w-4" />}
-          title="Local Demand"
-          chip={<span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", demandChip)}>{profile.demand.levelLabel}</span>}
+          title={t("hyperlocal.localDemand")}
+          chip={<span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", demandChip)}>{demandLevelText}</span>}
         >
           <ul className="space-y-2.5">
             {profile.demand.insights.map((ins) => (
@@ -117,18 +142,18 @@ export default function HyperlocalIntelligence({
         {/* Market gap */}
         <InsightCard
           icon={<Sparkles className="h-4 w-4" />}
-          title="Local Market Gaps"
+          title={t("hyperlocal.localMarketGaps")}
           chip={
             profile.marketGaps.length > 0 ? (
               <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                {profile.marketGaps.length} potential gap{profile.marketGaps.length > 1 ? "s" : ""}
+                {t("hyperlocal.potentialGaps").replace("{count}", String(profile.marketGaps.length))}
               </span>
             ) : undefined
           }
         >
           {profile.marketGaps.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No strong gap signal from the available category-presence data — validate demand directly with local retailers and customers before deciding.
+              {t("hyperlocal.noGapSignal")}
             </p>
           ) : (
             <ul className="space-y-2.5">
@@ -139,7 +164,7 @@ export default function HyperlocalIntelligence({
                       <span className="text-[10px] text-amber-600">◌</span> {g.title}
                     </p>
                     <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide", gapChip(g.strength))}>
-                      {gapLabel(g.strength)}
+                      {gapLabel(g.strength, t)}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug">{g.statement}</p>
@@ -153,8 +178,8 @@ export default function HyperlocalIntelligence({
         {/* Competition */}
         <InsightCard
           icon={<Target className="h-4 w-4" />}
-          title="Local Competition"
-          chip={<span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", densityChip(profile.competition.density))}>{profile.competition.density}</span>}
+          title={t("hyperlocal.localCompetition")}
+          chip={<span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", densityChip(profile.competition.density))}>{densityText}</span>}
         >
           <p className="text-xs text-muted-foreground mb-2">{profile.competition.summary}</p>
           <InsightRow
@@ -164,20 +189,25 @@ export default function HyperlocalIntelligence({
             explanation={profile.competition.insight.explanation}
           />
           <p className="mt-2 text-[10px] text-muted-foreground/70">
-            Competitor positions are drawn on the competition map in the section above with the analysis-radius ring.
+            {t("hyperlocal.competitionMapNote")}
           </p>
         </InsightCard>
 
         {/* Customer opportunity */}
         <InsightCard
           icon={<CircleDot className="h-4 w-4" />}
-          title="Customer Opportunity"
-          chip={<span className="rounded-full bg-primary/5 border border-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{profile.meta.radiusKm} km area</span>}
+          title={t("hyperlocal.customerOpportunity")}
+          chip={<span className="rounded-full bg-primary/5 border border-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{t("hyperlocal.areaKm").replace("{radius}", String(profile.meta.radiusKm))}</span>}
         >
-          <p className="text-xs font-bold text-foreground mb-1">Primary: {profile.customerOpportunity.primary}</p>
+          <p className="text-xs font-bold text-foreground mb-1">
+            {t("hyperlocal.primary")}{" "}
+            {profile.customerOpportunity.primary === "Farming households"
+              ? t("hyperlocal.farmingHouseholds")
+              : profile.customerOpportunity.primary}
+          </p>
           {profile.customerOpportunity.secondary.length > 0 && (
             <p className="text-[11px] text-muted-foreground mb-2">
-              Secondary: {profile.customerOpportunity.secondary.join(", ")}
+              {t("hyperlocal.secondary")} {profile.customerOpportunity.secondary.join(", ")}
             </p>
           )}
           <InsightRow
@@ -196,9 +226,9 @@ export default function HyperlocalIntelligence({
 
       {/* Risks + why this location */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InsightCard icon={<AlertTriangle className="h-4 w-4" />} title="Local Risks (top)" chip={undefined}>
+        <InsightCard icon={<AlertTriangle className="h-4 w-4" />} title={t("hyperlocal.localRisks")} chip={undefined}>
           {profile.risks.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No major local risks flagged in the current analysis.</p>
+            <p className="text-xs text-muted-foreground">{t("hyperlocal.noRisks")}</p>
           ) : (
             <ul className="space-y-2">
               {profile.risks.map((r) => (
@@ -208,14 +238,14 @@ export default function HyperlocalIntelligence({
                     <p className="text-xs font-bold text-foreground">{r.name}</p>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug">{r.explanation}</p>
-                  <p className="text-[10px] text-primary/80 mt-1">Action: {r.mitigation}</p>
+                  <p className="text-[10px] text-primary/80 mt-1">{t("hyperlocal.action")} {r.mitigation}</p>
                 </li>
               ))}
             </ul>
           )}
         </InsightCard>
 
-        <InsightCard icon={<Layers className="h-4 w-4" />} title="Why this location matters" chip={undefined}>
+        <InsightCard icon={<Layers className="h-4 w-4" />} title={t("hyperlocal.whyLocation")} chip={undefined}>
           <p className="text-xs text-muted-foreground leading-relaxed mb-2">{profile.locationFit.statement}</p>
           <ul className="space-y-1.5 text-[11px] text-muted-foreground">
             <li className="flex gap-1.5"><span className="text-primary">•</span> {profile.locationFit.marketNote}</li>
@@ -230,12 +260,12 @@ export default function HyperlocalIntelligence({
         <div className="flex items-start gap-2">
           <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="text-[10px] text-muted-foreground leading-relaxed">
-            <p className="font-semibold text-foreground mb-0.5">How this was determined</p>
+            <p className="font-semibold text-foreground mb-0.5">{t("hyperlocal.howDetermined")}</p>
             {profile.caveats.map((c) => (
               <p key={c}>• {c}</p>
             ))}
             <p className="mt-1">
-              Confidence: <ConfidenceTag confidence={profile.confidence} /> · Sources: {profile.sources.join(" · ")}
+              {t("hyperlocal.confidence")} <ConfidenceTag confidence={profile.confidence} /> · {t("hyperlocal.sources")} {profile.sources.join(" · ")}
             </p>
           </div>
         </div>
@@ -270,9 +300,10 @@ function InsightRow({ value, explanation, sourceType, confidence }: { value: str
 }
 
 function SourceTag({ sourceType, confidence }: { sourceType: SourceType; confidence: Confidence }) {
+  const { t } = useLanguage();
   return (
     <p className="mt-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">
-      {sourceLabel(sourceType)} · confidence: {confidence}
+      {sourceLabel(sourceType, t)} · confidence: {confidence}
     </p>
   );
 }
@@ -306,8 +337,12 @@ function gapChip(strength: GapStrength): string {
   return "bg-slate-100 text-slate-500 border-slate-200";
 }
 
-function gapLabel(strength: GapStrength): string {
-  return strength === "clear-potential" ? "potential" : strength === "possible" ? "possible" : "limited signal";
+function gapLabel(strength: GapStrength, t: (k: any) => string): string {
+  return strength === "clear-potential"
+    ? t("hyperlocal.gapPotential")
+    : strength === "possible"
+      ? t("hyperlocal.gapPossible")
+      : t("hyperlocal.gapLimited");
 }
 
 function densityChip(density: "high" | "medium" | "low"): string {
@@ -322,18 +357,18 @@ function impactChip(direction: ImpactDirection): string {
   return "bg-red-50 text-red-700 border-red-200";
 }
 
-function sourceLabel(s: SourceType): string {
+function sourceLabel(s: SourceType, t: (k: any) => string): string {
   switch (s) {
     case "VERIFIED_DATA":
-      return "Verified data";
+      return t("hyperlocal.sourceVerified");
     case "USER_PROVIDED":
-      return "You provided";
+      return t("hyperlocal.sourceUser");
     case "CALCULATED":
-      return "Calculated";
+      return t("hyperlocal.sourceCalculated");
     case "AI_INFERENCE":
-      return "AI-derived";
+      return t("hyperlocal.sourceAi");
     case "ESTIMATE":
-      return "Estimate";
+      return t("hyperlocal.sourceEstimate");
     default:
       return "Data unavailable";
   }

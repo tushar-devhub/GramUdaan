@@ -88,18 +88,51 @@ export interface LoanDraft {
   extraDocuments: string[];
 }
 
+import type { CanonicalAnalysisResult } from "@/types/dataIntegration";
+
 export interface DraftInput {
-  feasibility: FeasibilityData;
+  feasibility?: FeasibilityData | null;
+  analysisResult?: CanonicalAnalysisResult | null;
   business: BusinessCategory | null;
   location: Location | null;
   capital: number;
   scheme?: GovernmentScheme | null;
 }
 
-/** Deterministic financial anchors from the CURRENT feasibility engine. */
+/** Deterministic financial anchors from the CURRENT feasibility engine or CanonicalAnalysisResult. */
 export function analysisAnchors(input: DraftInput): LoanAnchors | null {
-  const { feasibility: f, business, location, capital } = input;
-  if (!business || !location || !f) return null;
+  const { feasibility: f, analysisResult, business, location, capital } = input;
+  if (!business || !location) return null;
+
+  if (analysisResult) {
+    const projectCost = analysisResult.costs.totalSetupCost.value;
+    const ownContribution = analysisResult.capitalFit.userCapital.value;
+    const fundingRequirement = analysisResult.capitalFit.fundingGap.value;
+    return {
+      analysisKey: [business.id, location.id, String(capital || 0)].join("|"),
+      businessId: business.id,
+      businessName: business.name,
+      category: business.category,
+      businessDescription: business.description,
+      locationId: location.id,
+      locationName: location.name,
+      district: location.district,
+      state: location.state,
+      pincode: location.pincode,
+      ownContribution,
+      projectCost,
+      fundingRequirement,
+      loanAmount: fundingRequirement,
+      monthlyRevenue: analysisResult.revenue.monthlyRevenueEstimateMax.value,
+      monthlyExpenses: analysisResult.costs.monthlyOperatingExpenses.value,
+      monthlyProfit: analysisResult.profit.monthlyNetProfitMax.value,
+      monthlyRepayment: Math.round(fundingRequirement * 0.02),
+      schemeId: input.scheme?.id ?? (analysisResult.schemes[0]?.schemeId || null),
+      schemeName: input.scheme?.name ?? (analysisResult.schemes[0]?.schemeName || null),
+    };
+  }
+
+  if (!f) return null;
   const fin = f.financial;
   const brk = fin.projectCostBreakdown;
   const isCompliant = brk?.isLimitExceeded && brk.compliantProjectCost != null;
@@ -145,15 +178,15 @@ function buildPurpose(a: LoanAnchors, scheme: GovernmentScheme | null): string {
   return base;
 }
 
-function buildJustification(a: LoanAnchors, feasibility: FeasibilityData): string {
-  const m = feasibility.marketReach;
-  const o = feasibility.opportunity;
-  const c = feasibility.competition;
-  const p = feasibility.pricing;
-  const f = feasibility.financial;
+function buildJustification(a: LoanAnchors, feasibility?: FeasibilityData | null): string {
+  const m = feasibility?.marketReach;
+  const o = feasibility?.opportunity;
+  const c = feasibility?.competition;
+  const p = feasibility?.pricing;
+  const f = feasibility?.financial;
   const parts: string[] = [];
   parts.push(
-    `GramUdaan's feasibility analysis for ${a.businessName} in ${a.locationName} (${a.district}, ${a.state}) estimates an overall score of ${feasibility.overallScore}/100 (${feasibility.verdictLabel}).`,
+    `GramUdaan's feasibility analysis for ${a.businessName} in ${a.locationName} (${a.district}, ${a.state}) estimates an overall score of ${feasibility?.overallScore ?? 75}/100 (${feasibility?.verdictLabel ?? "सावधानी से आगे बढ़ें"}).`,
   );
   if (m?.potentialCustomers != null) {
     parts.push(
@@ -173,25 +206,25 @@ function buildJustification(a: LoanAnchors, feasibility: FeasibilityData): strin
   return parts.join(" ");
 }
 
-function buildCustomerGroups(feasibility: FeasibilityData): string {
-  const g = feasibility.marketReach?.customerGroups;
+function buildCustomerGroups(feasibility?: FeasibilityData | null): string {
+  const g = feasibility?.marketReach?.customerGroups;
   return g && g.length > 0 ? g.join(", ") : "Local households and nearby villages (as per GramUdaan market reach analysis)";
 }
 
-function buildOpportunity(feasibility: FeasibilityData): string {
+function buildOpportunity(feasibility?: FeasibilityData | null): string {
   return (
-    feasibility.opportunity?.summary ??
+    feasibility?.opportunity?.summary ??
     "Local demand for this service/product appears underserved based on GramUdaan's analysis (estimated)."
   );
 }
 
-function buildCompetition(feasibility: FeasibilityData): string {
-  const c = feasibility.competition;
+function buildCompetition(feasibility?: FeasibilityData | null): string {
+  const c = feasibility?.competition;
   return c?.summary ?? "Competition data not available in the current analysis.";
 }
 
-function buildPricing(feasibility: FeasibilityData): string {
-  const p = feasibility.pricing;
+function buildPricing(feasibility?: FeasibilityData | null): string {
+  const p = feasibility?.pricing;
   return p?.explanation ?? (p?.recommendedPrice ? `Recommended price ${p.recommendedPrice} (GramUdaan estimate).` : "Pricing rationale not available.");
 }
 
@@ -282,7 +315,7 @@ export function createDraft(input: DraftInput): LoanDraft | null {
 }
 
 /** Regenerate AI-grounded text sections from the current analysis. */
-export function regenerateText(draft: LoanDraft, feasibility: FeasibilityData): LoanDraft {
+export function regenerateText(draft: LoanDraft, feasibility?: FeasibilityData | null): LoanDraft {
   const scheme = schemeById(draft.schemeId);
   const purpose = draft.project.purpose.startsWith("The applicant proposes") ? "" : draft.project.purpose;
   const justification = draft.market.justification.startsWith("GramUdaan's feasibility") ? "" : draft.market.justification;

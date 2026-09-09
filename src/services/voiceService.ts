@@ -230,6 +230,23 @@ export function stopListening(): void {
 }
 
 // ─── Text-to-Speech (TTS) ───
+export async function speakMessage(
+  text: string,
+  lang: string = "hi-IN",
+  onEnd?: () => void
+): Promise<void> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = lang;
+  utterance.rate = 0.95;
+  if (onEnd) {
+    utterance.onend = () => onEnd();
+    utterance.onerror = () => onEnd();
+  }
+  window.speechSynthesis.speak(utterance);
+}
+
 export async function speakHindi(
   text: string,
   onEnd: () => void,
