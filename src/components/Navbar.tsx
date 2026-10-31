@@ -52,6 +52,9 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
         <div className="hidden md:flex items-center gap-2">
           {isLanding ? (
             <>
+              <Link to="/dashboard" className="rounded-lg px-3 py-2 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                {t("nav.home")}
+              </Link>
               <a href="#how-it-works" className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {t("nav.howItWorks")}
               </a>
@@ -83,11 +86,17 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
           )}
           <LanguageToggle />
           <Link
-            to="/onboarding"
-            className="ml-2 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            to="/signin"
+            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:text-emerald-800 transition-colors"
           >
-            {t("nav.analyzeMyBusiness")}
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">
+            Sign In
+          </Link>
+          <Link
+            to="/signup"
+            className="ml-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-800 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-900 transition-colors shadow-xs"
+          >
+            Get Started
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/20 text-[9px]">
               →
             </span>
           </Link>
@@ -111,6 +120,9 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
         <div className="md:hidden border-t border-border/50 bg-white px-4 pb-4">
           {isLanding ? (
             <div className="flex flex-col gap-1 py-2">
+              <Link to="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors" onClick={() => setMobileOpen(false)}>
+                {t("nav.home")}
+              </Link>
               <a href="#how-it-works" className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}>
                 {t("nav.howItWorks")}
               </a>
@@ -140,13 +152,22 @@ export function Navbar({ className, variant = "landing" }: NavbarProps) {
               </Link>
             </div>
           )}
-          <Link
-            to="/onboarding"
-            className="mt-2 flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground"
-            onClick={() => setMobileOpen(false)}
-          >
-            {t("nav.analyzeMyBusiness")} →
-          </Link>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              to="/signin"
+              className="flex items-center justify-center py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800"
+              onClick={() => setMobileOpen(false)}
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/signup"
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-800 py-2.5 text-xs font-bold text-white shadow-xs"
+              onClick={() => setMobileOpen(false)}
+            >
+              Get Started →
+            </Link>
+          </div>
         </div>
       )}
     </nav>

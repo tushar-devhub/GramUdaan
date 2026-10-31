@@ -1,8 +1,8 @@
+import { useEffect, useState } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
 import { ModuleHeader } from "@/components/module-ui";
 import { formatIndianCurrency } from "@/data/assessment";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { getUserReports, deleteReport, type SupabaseReport } from "@/services/supabase/reports";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
@@ -26,21 +26,38 @@ import { Link, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 
 export default function Reports() {
-  const { feasibility: f, business, location, setFeasibility, setBusiness, setLocation, setCapital } = useOnboarding();
+  const { feasibility: f, business, location, setFeasibility, setBusiness, setLocation, setCapital, loadSavedReport } = useOnboarding();
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
-  const savedReports = useQuery(api.reports.getUserReports) || [];
-  const deleteReportMutation = useMutation(api.reports.deleteReport);
+  const [savedReports, setSavedReports] = useState<SupabaseReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadReports = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getUserReports();
+      setSavedReports(data);
+    } catch (err) {
+      console.error("[Reports] Error loading saved reports:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, [isAuthenticated]);
 
   const ready = Boolean(f && business && location);
 
-  const handleDeleteReport = async (id: any, e: React.MouseEvent) => {
+  const handleDeleteReport = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     try {
-      await deleteReportMutation({ id });
+      await deleteReport(id);
+      setSavedReports((prev) => prev.filter((r) => r.id !== id));
       toast.success(t("reports.deletedSuccess"));
     } catch (err) {
       console.error(err);
@@ -136,60 +153,70 @@ export default function Reports() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {savedReports.map((report: any) => (
-              <div
-                key={report._id}
-                className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-md"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mb-1">
-                        {t("reports.scoreBadge").replace("{score}", String(report.overallScore))}
-                      </span>
-                      <h3 className="text-sm font-bold text-foreground">{report.title}</h3>
+            {savedReports.map((report) => {
+              const score = report.overall_score ?? report.overall_score ?? 0;
+              const dateStr = report.created_at ? new Date(report.created_at).toLocaleDateString() : "";
+              const bizName = report.business_name || "";
+              const locName = report.location_name || "";
+
+              return (
+                <div
+                  key={report.id}
+                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-md"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mb-1">
+                          {t("reports.scoreBadge").replace("{score}", String(score))}
+                        </span>
+                        <h3 className="text-sm font-bold text-foreground">{report.title}</h3>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteReport(report.id, e)}
+                        title={t("reports.deleteReport")}
+                        className="text-muted-foreground hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
 
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Store className="h-3.5 w-3.5 text-emerald-600" />
+                        {bizName}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                        {locName}
+                      </span>
+                    </div>
+
+                    <div className="text-xs font-semibold text-foreground bg-slate-50 p-2.5 rounded-xl border flex items-center justify-between">
+                      <span>{t("reports.estInvestment")}</span>
+                      <span className="font-extrabold text-emerald-700">{formatIndianCurrency(report.capital)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t flex items-center justify-between text-xs font-bold">
+                    <span className="text-[11px] text-muted-foreground font-normal">
+                      {dateStr}
+                    </span>
+
                     <button
-                      onClick={(e) => handleDeleteReport(report._id, e)}
-                      title={t("reports.deleteReport")}
-                      className="text-muted-foreground hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                      onClick={() => {
+                        loadSavedReport(report);
+                        navigate(`/report?id=${report.id}`);
+                      }}
+                      className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {t("reports.viewReport")} <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Store className="h-3.5 w-3.5 text-emerald-600" />
-                      {report.businessName}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-blue-600" />
-                      {report.locationName}
-                    </span>
-                  </div>
-
-                  <div className="text-xs font-semibold text-foreground bg-slate-50 p-2.5 rounded-xl border flex items-center justify-between">
-                    <span>{t("reports.estInvestment")}</span>
-                    <span className="font-extrabold text-emerald-700">{formatIndianCurrency(report.capital)}</span>
-                  </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t flex items-center justify-between text-xs font-bold">
-                  <span className="text-[11px] text-muted-foreground font-normal">
-                    {new Date(report.createdAt).toLocaleDateString()}
-                  </span>
-
-                  <Link
-                    to="/report"
-                    className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800"
-                  >
-                    {t("reports.viewReport")} <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -198,40 +225,36 @@ export default function Reports() {
       <div className="space-y-3 pt-4">
         <h2 className="text-base font-bold text-foreground">{t("reports.tools")}</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {tools.map((tItem) => (
+          {tools.map((tool) => (
             <Link
-              key={tItem.to}
-              to={tItem.to}
-              className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+              key={tool.to}
+              to={tool.to}
+              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-white p-5 transition-all hover:border-emerald-300 hover:shadow-md"
             >
-              <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", tItem.accent)} />
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground transition-colors group-hover:bg-emerald-600/10 group-hover:text-emerald-700">
-                  {tItem.icon}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-foreground">{tItem.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{tItem.desc}</p>
+              <div>
+                <div className="flex items-center justify-between">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm",
+                      tool.accent,
+                    )}
+                  >
+                    {tool.icon}
+                  </div>
+                  <span className="text-xs font-semibold text-muted-foreground">{tool.status}</span>
                 </div>
+                <h3 className="mt-4 text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                  {tool.title}
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{tool.desc}</p>
               </div>
-              <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1 text-[10px] font-bold text-foreground/70">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", ready ? "bg-emerald-500" : "bg-amber-400")} />
-                  {tItem.status}
-                </span>
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-primary">
-                  {tItem.cta} <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                </span>
+              <div className="mt-5 flex items-center gap-1 text-xs font-bold text-primary">
+                <span>{tool.cta}</span>
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
               </div>
             </Link>
           ))}
         </div>
-      </div>
-
-      {/* Footer note */}
-      <div className="flex items-start gap-2 rounded-2xl border border-border bg-white px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
-        <Download className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        <span>{t("reports.footerNote")}</span>
       </div>
     </div>
   );

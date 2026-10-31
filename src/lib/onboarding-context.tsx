@@ -63,35 +63,88 @@ interface OnboardingContextType extends OnboardingState {
   runFullAnalysis: (convexClient?: any) => Promise<CanonicalAnalysisResult | null>;
   reset: () => void;
   loadDemo: (demo: DemoScenario) => void;
+  loadSavedReport: (report: any) => void;
 }
 
-const defaultLocation = locations[0]; // Bisalpur, Pilibhit
-const defaultBusiness = businessCategories[0]; // Dairy / डेयरी
-const defaultCapital = 200000;
-const defaultFeasibility = generateFeasibility(defaultBusiness.id, defaultCapital, defaultLocation.id, 5);
+// Baseline location shown on Step 1 (New Delhi, matching the onboarding setup in Image 1)
+const defaultLocation = locations[0]; // New Delhi, Delhi (PIN 110001)
 
-const defaultState: OnboardingState = {
+export const defaultState: OnboardingState = {
   location: defaultLocation,
   radius: 5,
-  business: defaultBusiness,
+  business: null, // No default business; entrepreneur chooses in Step 2
   subCategory: null,
   placeStatus: "unsure",
   rentMonthly: 0,
   scaleChoice: "recommended",
   businessAnswers: {},
-  capital: defaultCapital,
-  targetInvestment: defaultCapital,
+  capital: 0, // No default capital; entrepreneur enters in Step 5
+  targetInvestment: 0,
   otherFunding: 0,
   costOverrides: {},
-  feasibility: defaultFeasibility,
+  feasibility: null, // No pre-generated feasibility report
   analysisResult: null,
   isAnalyzing: false,
 };
 
 const OnboardingContext = createContext<OnboardingContextType | null>(null);
 
+const ONBOARDING_STORAGE_KEY = "gramudaan_active_onboarding_v2";
+
+export function clearOnboardingStorage() {
+  try {
+    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  } catch {}
+}
+
+function loadPersistedState(): OnboardingState {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Only keep persisted state if the entrepreneur actually selected a business
+      if (parsed && typeof parsed === "object" && parsed.business) {
+        return {
+          ...defaultState,
+          ...parsed,
+          isAnalyzing: false,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[OnboardingContext] Error loading cached state:", err);
+  }
+  return defaultState;
+}
+
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<OnboardingState>(defaultState);
+  const [state, setState] = useState<OnboardingState>(loadPersistedState);
+
+  // Automatically persist meaningful state changes to localStorage
+  useEffect(() => {
+    try {
+      if (state.business || state.location || state.feasibility || state.analysisResult) {
+        localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({
+          location: state.location,
+          business: state.business,
+          subCategory: state.subCategory,
+          capital: state.capital,
+          targetInvestment: state.targetInvestment,
+          otherFunding: state.otherFunding,
+          radius: state.radius,
+          placeStatus: state.placeStatus,
+          rentMonthly: state.rentMonthly,
+          scaleChoice: state.scaleChoice,
+          businessAnswers: state.businessAnswers,
+          costOverrides: state.costOverrides,
+          feasibility: state.feasibility,
+          analysisResult: state.analysisResult,
+        }));
+      }
+    } catch (err) {
+      console.warn("[OnboardingContext] Error persisting state:", err);
+    }
+  }, [state]);
 
   useEffect(() => {
     if (state.location && state.business && !state.analysisResult) {
@@ -112,38 +165,91 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   }, [state.location, state.business, state.subCategory, state.radius, state.capital, state.placeStatus, state.rentMonthly, state.scaleChoice, state.analysisResult]);
 
+  const computeFeasibilityForState = useCallback((s: OnboardingState): FeasibilityData | null => {
+    // Keep feasibility null until the entrepreneur completes onboarding and runs full analysis
+    if (!s.location || !s.business || !s.feasibility) return null;
+    return generateFeasibility(s.business.id, s.capital || 50000, s.location.id, s.radius, {
+      subCategoryId: s.subCategory?.id,
+      placeStatus: s.placeStatus,
+      rentMonthly: s.rentMonthly,
+      scaleChoice: s.scaleChoice,
+      businessAnswers: s.businessAnswers,
+    });
+  }, []);
+
   const setLocation = (location: Location | null) =>
-    setState((s) => ({ ...s, location }));
+    setState((s) => {
+      const next = { ...s, location, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setRadius = (radius: number) =>
-    setState((s) => ({ ...s, radius }));
+    setState((s) => {
+      const next = { ...s, radius, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setBusiness = (business: BusinessCategory | null) =>
-    setState((s) => ({ ...s, business, subCategory: null }));
+    setState((s) => {
+      const next = { ...s, business, subCategory: null, costOverrides: {}, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setSubCategory = (subCategory: BusinessSubCategory | null) =>
-    setState((s) => ({ ...s, subCategory }));
+    setState((s) => {
+      const next = { ...s, subCategory, costOverrides: {}, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setPlaceStatus = (placeStatus: PlaceStatus) =>
-    setState((s) => ({ ...s, placeStatus }));
+    setState((s) => {
+      const next = { ...s, placeStatus, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setRentMonthly = (rentMonthly: number) =>
-    setState((s) => ({ ...s, rentMonthly }));
+    setState((s) => {
+      const next = { ...s, rentMonthly, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setScaleChoice = (scaleChoice: ScaleChoice) =>
-    setState((s) => ({ ...s, scaleChoice }));
+    setState((s) => {
+      const next = { ...s, scaleChoice, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setBusinessAnswer = (id: string, value: string) =>
-    setState((s) => ({ ...s, businessAnswers: { ...s.businessAnswers, [id]: value } }));
+    setState((s) => {
+      const next = {
+        ...s,
+        businessAnswers: { ...s.businessAnswers, [id]: value },
+        analysisResult: null,
+      };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setCapital = (capital: number) =>
-    setState((s) => ({ ...s, capital }));
+    setState((s) => {
+      const next = { ...s, capital, targetInvestment: capital, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setTargetInvestment = (targetInvestment: number) =>
     setState((s) => ({ ...s, targetInvestment }));
   const setOtherFunding = (otherFunding: number) =>
-    setState((s) => ({ ...s, otherFunding }));
+    setState((s) => {
+      const next = { ...s, otherFunding, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setCostOverride = (id: string, value: number) =>
-    setState((s) => ({
-      ...s,
-      costOverrides: {
-        ...s.costOverrides,
-        [id]: Math.max(0, Number.isFinite(value) ? Math.round(value) : 0),
-      },
-    }));
+    setState((s) => {
+      const next = {
+        ...s,
+        costOverrides: {
+          ...s.costOverrides,
+          [id]: Math.max(0, Number.isFinite(value) ? Math.round(value) : 0),
+        },
+        analysisResult: null,
+      };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const resetCostOverrides = () =>
-    setState((s) => ({ ...s, costOverrides: {} }));
+    setState((s) => {
+      const next = { ...s, costOverrides: {}, analysisResult: null };
+      return { ...next, feasibility: computeFeasibilityForState(next) };
+    });
   const setFeasibility = (feasibility: FeasibilityData | null) =>
     setState((s) => ({ ...s, feasibility }));
   const setAnalysisResult = (analysisResult: CanonicalAnalysisResult | null) =>
@@ -204,6 +310,46 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const loadSavedReport = useCallback((report: any) => {
+    if (!report) return;
+    const biz = businessCategories.find((b) => b.id === report.business_id) || {
+      id: report.business_id || "dairy",
+      name: report.business_name || "Business",
+      category: "agriculture",
+      icon: "🏪",
+    } as any;
+
+    const loc = locations.find((l) => l.id === report.location_id) || {
+      id: report.location_id || "custom-loc",
+      name: (report.location_name || "Location").split(",")[0]?.trim(),
+      district: (report.location_name || "District").split(",")[1]?.trim() || "District",
+      state: "Uttar Pradesh",
+      population: 25000,
+      households: 4200,
+      lat: 28.3,
+      lng: 79.8,
+      pincode: "262201",
+    } as any;
+
+    const subCat = biz.subCategories?.find((s: any) => s.id === report.sub_category_id) || null;
+    const feasibility = report.feasibility_data || generateFeasibility(biz.id, report.capital || 100000, loc.id, 5);
+
+    setState((s) => ({
+      ...s,
+      business: biz,
+      location: loc,
+      subCategory: subCat,
+      capital: report.capital || 100000,
+      targetInvestment: report.target_investment || report.capital || 100000,
+      otherFunding: report.other_funding || 0,
+      placeStatus: report.place_status || "unsure",
+      rentMonthly: report.rent_monthly || 0,
+      scaleChoice: report.scale_choice || "recommended",
+      feasibility,
+      isAnalyzing: false,
+    }));
+  }, []);
+
   return (
     <OnboardingContext.Provider
       value={{
@@ -227,6 +373,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         runFullAnalysis,
         reset,
         loadDemo,
+        loadSavedReport,
       }}
     >
       {children}
@@ -255,6 +402,7 @@ const defaultContextValue: OnboardingContextType = {
   runFullAnalysis: async () => null,
   reset: () => {},
   loadDemo: () => {},
+  loadSavedReport: () => {},
 };
 
 export function useOnboarding() {

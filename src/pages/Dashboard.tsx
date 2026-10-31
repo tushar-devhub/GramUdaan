@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { getUserReports } from "@/services/supabase/reports";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { formatIndianCurrency, getSeverityColor, getVerdictColor, getVerdictBg, getVerdictIcon } from "@/data/assessment";
 import type { Location } from "@/data/locations";
@@ -32,9 +33,42 @@ import { ModuleEmptyState, StatCard } from "@/components/module-ui";
  * ════════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const { t } = useLanguage();
-  const { feasibility, analysisResult, location, business, capital, radius, subCategory } = useOnboarding();
+  const { feasibility, analysisResult, location, business, capital, radius, subCategory, loadSavedReport } = useOnboarding();
+  const [checkingReports, setCheckingReports] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    if ((!feasibility && !analysisResult) || !business) {
+      getUserReports()
+        .then((reports) => {
+          if (active && reports && reports.length > 0) {
+            loadSavedReport(reports[0]);
+          }
+        })
+        .catch((err) => console.warn("[Dashboard] Error loading saved reports:", err))
+        .finally(() => {
+          if (active) setCheckingReports(false);
+        });
+    } else {
+      setCheckingReports(false);
+    }
+    return () => {
+      active = false;
+    };
+  }, [feasibility, analysisResult, business, loadSavedReport]);
 
   if ((!feasibility && !analysisResult) || !business) {
+    if (checkingReports) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-7 w-7 rounded-full border-2 border-slate-200 border-t-emerald-700 animate-spin" />
+            <span className="text-xs text-muted-foreground font-medium">{t("common.loading")}</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ModuleEmptyState
         title={t("dashboard.emptyTitle")}
@@ -485,20 +519,22 @@ export function HeroScore({ score, verdict, verdictLabel, businessName, location
 }
 
 /* ═══ BUSINESS AT A GLANCE ═══ */
-export function BusinessAtGlance({ decision, verdict }: { decision: { whyPoints: string[]; watchOuts: string[] }; verdict: string }) {
+export function BusinessAtGlance({ decision, verdict }: { decision?: { whyPoints?: string[]; watchOuts?: string[] }; verdict: string }) {
   const { t } = useLanguage();
+  const whyPoints = decision?.whyPoints || [];
+  const watchOuts = decision?.watchOuts || [];
   const signals = [
     {
       icon: <CheckCircle2 className="h-4 w-4" />,
       label: t("dashboard.glanceStrongestSignal"),
-      text: decision.whyPoints[0] || t("dashboard.glancePositiveIndicators"),
+      text: whyPoints[0] || t("dashboard.glancePositiveIndicators"),
       color: "bg-emerald-50 border-emerald-200 text-emerald-700",
       iconColor: "text-emerald-500",
     },
     {
       icon: <AlertTriangle className="h-4 w-4" />,
       label: t("dashboard.glanceWatchClosely"),
-      text: decision.watchOuts[0] || t("dashboard.glanceMonitorRisks"),
+      text: watchOuts[0] || t("dashboard.glanceMonitorRisks"),
       color: "bg-amber-50 border-amber-200 text-amber-700",
       iconColor: "text-amber-500",
     },

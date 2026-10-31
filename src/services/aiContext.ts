@@ -48,7 +48,172 @@ When greeting for the first time, say:
 
 Never start with "How can I help you?" — be specific to their context.`;
 
-// ─── Context Builder ───
+// ─── Context Builder & Memory ───
+export interface StructuredConversationContext {
+  locationName?: string | null;
+  district?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  businessName?: string | null;
+  businessCategory?: string | null;
+  subCategory?: string | null;
+  capital?: number | null;
+  otherFunding?: number | null;
+  targetInvestment?: number | null;
+  placeStatus?: string | null;
+  rentMonthly?: number | null;
+  scaleChoice?: string | null;
+  businessAnswers?: Record<string, string>;
+  language?: string | null;
+}
+
+export function updateStructuredContext(
+  prev: StructuredConversationContext,
+  parsed: {
+    businesses?: BusinessCategory[];
+    capital?: number | null;
+    location?: Location | null;
+    unknownPlace?: string | null;
+    lang?: string;
+  },
+  onboardingState?: {
+    placeStatus?: string;
+    rentMonthly?: number;
+    scaleChoice?: string;
+    subCategory?: { name: string } | null;
+    businessAnswers?: Record<string, string>;
+    otherFunding?: number;
+  }
+): StructuredConversationContext {
+  const next: StructuredConversationContext = { ...prev };
+
+  // 1. Business update (explicit new mention updates business; retains if unmentioned)
+  if (parsed.businesses && parsed.businesses.length > 0) {
+    const topBiz = parsed.businesses[0];
+    next.businessName = topBiz.name;
+    next.businessCategory = topBiz.category;
+  }
+
+  // 2. Location update (known or raw location mention)
+  if (parsed.location) {
+    next.locationName = parsed.location.name;
+    next.district = parsed.location.district;
+    next.state = parsed.location.state;
+    next.pincode = parsed.location.pincode;
+  } else if (parsed.unknownPlace) {
+    next.locationName = parsed.unknownPlace;
+  }
+
+  // 3. Capital update
+  if (parsed.capital !== null && parsed.capital !== undefined && parsed.capital > 0) {
+    next.capital = parsed.capital;
+  }
+
+  // 4. Language preference update
+  if (parsed.lang) {
+    next.language = parsed.lang;
+  }
+
+  // 5. Context state fallback from onboarding if present
+  if (onboardingState) {
+    if (onboardingState.placeStatus && onboardingState.placeStatus !== "unsure") {
+      next.placeStatus = onboardingState.placeStatus;
+    }
+    if (onboardingState.rentMonthly) {
+      next.rentMonthly = onboardingState.rentMonthly;
+    }
+    if (onboardingState.scaleChoice) {
+      next.scaleChoice = onboardingState.scaleChoice;
+    }
+    if (onboardingState.subCategory?.name) {
+      next.subCategory = onboardingState.subCategory.name;
+    }
+    if (onboardingState.otherFunding) {
+      next.otherFunding = onboardingState.otherFunding;
+    }
+    if (onboardingState.businessAnswers && Object.keys(onboardingState.businessAnswers).length > 0) {
+      next.businessAnswers = { ...(next.businessAnswers || {}), ...onboardingState.businessAnswers };
+    }
+  }
+
+  return next;
+}
+
+export function buildStructuredContextString(
+  ctx: StructuredConversationContext,
+  feasibility?: FeasibilityData | null,
+  currentPage?: string
+): string {
+  const lines: string[] = [];
+
+  lines.push("CURRENT GRAMUDAAN CONTEXT:");
+
+  if (ctx.businessName) {
+    lines.push(`Business: ${ctx.businessName}${ctx.businessCategory ? ` (${ctx.businessCategory})` : ""}`);
+  } else {
+    lines.push("Business: Not specified yet");
+  }
+
+  if (ctx.subCategory) {
+    lines.push(`Subcategory: ${ctx.subCategory}`);
+  }
+
+  if (ctx.locationName) {
+    const locParts = [ctx.locationName];
+    if (ctx.district && ctx.district !== ctx.locationName) locParts.push(`District: ${ctx.district}`);
+    if (ctx.state) locParts.push(`State: ${ctx.state}`);
+    if (ctx.pincode) locParts.push(`PIN: ${ctx.pincode}`);
+    lines.push(`Location: ${locParts.join(", ")}`);
+  } else {
+    lines.push("Location: Not specified yet");
+  }
+
+  if (ctx.capital !== null && ctx.capital !== undefined) {
+    lines.push(`Capital: ${formatIndianCurrency(ctx.capital)}`);
+  } else {
+    lines.push("Capital: Not specified yet");
+  }
+
+  if (ctx.otherFunding) {
+    lines.push(`Other Funding: ${formatIndianCurrency(ctx.otherFunding)}`);
+  }
+
+  if (ctx.placeStatus && ctx.placeStatus !== "unsure") {
+    lines.push(`Workspace: ${ctx.placeStatus}${ctx.rentMonthly ? ` (Rent: ${formatIndianCurrency(ctx.rentMonthly)}/month)` : ""}`);
+  }
+
+  if (ctx.scaleChoice) {
+    lines.push(`Scale: ${ctx.scaleChoice}`);
+  }
+
+  if (ctx.language) {
+    lines.push(`Preferred Language: ${ctx.language}`);
+  }
+
+  if (feasibility) {
+    lines.push(`\nANALYSIS SCORES:`);
+    lines.push(`Overall Score: ${feasibility.overallScore}/100 (${feasibility.verdictLabel})`);
+    lines.push(`Market Score: ${feasibility.subScores.marketScore}/100`);
+    lines.push(`Opportunity Score: ${feasibility.subScores.opportunityScore}/100`);
+    lines.push(`Competition Score: ${feasibility.subScores.competitionScore}/100`);
+    lines.push(`Risk Score: ${feasibility.subScores.riskScore}/100`);
+    lines.push(`Financial Fit: ${feasibility.subScores.financialFitScore}/100`);
+
+    if (feasibility.financial) {
+      lines.push(`\nFINANCIAL DATA:`);
+      lines.push(`Total Project Cost: ${formatIndianCurrency(feasibility.financial.totalProjectCost)}`);
+      lines.push(`Agency Funding: ${formatIndianCurrency(feasibility.financial.potentialLoan)}`);
+      lines.push(`Scheme: ${feasibility.financial.recommendedScheme}`);
+    }
+  }
+
+  if (currentPage) {
+    lines.push(`\nUser is viewing: ${currentPage}`);
+  }
+
+  return lines.join("\n");
+}
+
 export interface AssistantContext {
   location: { name: string; district: string; state: string } | null;
   business: { name: string; category: string } | null;
@@ -86,73 +251,17 @@ export function buildContext(params: {
 }): string {
   const { location, business, capital, feasibility, currentPage } = params;
 
-  if (!feasibility) {
-    return `\nCURRENT CONTEXT: No analysis available yet. The user has not completed an assessment. Guide them to start an assessment first.`;
-  }
+  const structCtx: StructuredConversationContext = {
+    locationName: location?.name,
+    district: location?.district,
+    state: location?.state,
+    pincode: location?.pincode,
+    businessName: business?.name,
+    businessCategory: business?.category,
+    capital: capital > 0 ? capital : null,
+  };
 
-  const context: string[] = [];
-
-  context.push(`\nCURRENT RURALBIZ CONTEXT:`);
-
-  if (location) {
-    context.push(`Location: ${location.name}, ${location.district}, ${location.state}`);
-  }
-
-  if (business) {
-    context.push(`Business: ${business.name} (${business.category})`);
-  }
-
-  context.push(`Capital Contribution: ${formatIndianCurrency(capital)}`);
-
-  context.push(`\nANALYSIS RESULTS:`);
-  context.push(`Overall Score: ${feasibility.overallScore}/100`);
-  context.push(`Verdict: ${feasibility.verdictLabel}`);
-  context.push(`Market Score: ${feasibility.subScores.marketScore}/100`);
-  context.push(`Opportunity Score: ${feasibility.subScores.opportunityScore}/100`);
-  context.push(`Competition Score: ${feasibility.subScores.competitionScore}/100`);
-  context.push(`Risk Score: ${feasibility.subScores.riskScore}/100`);
-  context.push(`Financial Fit: ${feasibility.subScores.financialFitScore}/100`);
-
-  if (feasibility.financial) {
-    context.push(`\nFINANCIAL DATA:`);
-    context.push(`Total Project Cost: ${formatIndianCurrency(feasibility.financial.totalProjectCost)}`);
-    context.push(`Agency Funding: ${formatIndianCurrency(feasibility.financial.potentialLoan)}`);
-    context.push(`Scheme: ${feasibility.financial.recommendedScheme}`);
-    if (feasibility.financial.affordability) {
-      context.push(`Monthly Revenue (est): ${formatIndianCurrency(feasibility.financial.affordability.expectedRevenue)}`);
-      context.push(`Monthly Costs: ${formatIndianCurrency(feasibility.financial.affordability.operatingCosts)}`);
-      context.push(`Monthly Repayment: ${formatIndianCurrency(feasibility.financial.affordability.monthlyRepayment)}`);
-      context.push(`Affordability: ${feasibility.financial.affordability.ratingLabel}`);
-    }
-  }
-
-  if (feasibility.competition) {
-    context.push(`\nCOMPETITION:`);
-    context.push(`${feasibility.competition.totalBusinesses} competitors, density: ${feasibility.competition.density}`);
-  }
-
-  if (feasibility.risks?.length) {
-    context.push(`\nKEY RISKS:`);
-    feasibility.risks.slice(0, 4).forEach((r) => {
-      context.push(`- ${r.name} (${r.severity}): ${r.explanation}`);
-    });
-  }
-
-  if (feasibility.pricing) {
-    context.push(`\nPRICING: Regional ${feasibility.pricing.regionalPrice}, Recommended ${feasibility.pricing.recommendedPrice}, Unit: ${feasibility.pricing.unit}`);
-  }
-
-  context.push(`\nDECISION: ${feasibility.decision.summary}`);
-  context.push(`WHY: ${feasibility.decision.whyPoints.join("; ")}`);
-  context.push(`WATCH OUT: ${feasibility.decision.watchOuts.join("; ")}`);
-
-  if (currentPage) {
-    context.push(`\nUser is currently viewing: ${currentPage} section. Prioritize questions about this topic.`);
-  }
-
-  context.push(`\nRemember: Always use this context when answering. Refer to specific numbers and scores. Never make up data.`);
-
-  return context.join("\n");
+  return buildStructuredContextString(structCtx, feasibility, currentPage);
 }
 
 // ─── Page-specific quick prompts ───

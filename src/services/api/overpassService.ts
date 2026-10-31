@@ -58,11 +58,14 @@ export async function fetchNearbyOSMBusinesses(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "GramUdaan/1.0 (https://gramudaan.in)",
+      },
       body: `data=${encodeURIComponent(query)}`,
       signal: controller.signal,
     });

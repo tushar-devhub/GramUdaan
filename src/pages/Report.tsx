@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useOnboarding } from "@/lib/onboarding-context";
 import { formatIndianCurrency, getVerdictColor, getVerdictIcon } from "@/data/assessment";
 import { buildHyperlocalProfile } from "@/services/hyperlocal/profile";
@@ -6,8 +6,7 @@ import { SWOTGrid } from "@/components/ui/SWOTGrid";
 import { DataConfidenceBadge } from "@/components/ui/DataConfidenceBadge";
 import { matchSchemesForProfileSource, type SchemeMatch } from "@/engine/schemeMatching";
 import { VisualDecisionReport } from "@/components/VisualDecisionReport";
-import { useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { saveReport, getReportById, getUserReports } from "@/services/supabase/reports";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
@@ -29,44 +28,91 @@ import {
   Eye,
   FileText,
 } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { cn } from "@/lib/utils";
 
 export default function Report() {
-  const { feasibility, analysisResult, location, business, capital, radius, targetInvestment, otherFunding, placeStatus, rentMonthly, scaleChoice } = useOnboarding();
+  const {
+    feasibility,
+    analysisResult,
+    location,
+    business,
+    capital,
+    radius,
+    targetInvestment,
+    otherFunding,
+    placeStatus,
+    rentMonthly,
+    scaleChoice,
+    loadSavedReport,
+  } = useOnboarding();
   const [reportViewMode, setReportViewMode] = useState<"visual" | "detailed">("visual");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
   const { t, language } = useLanguage();
 
-  const saveReportMutation = useMutation(api.reports.saveReport);
+  const reportIdParam = searchParams.get("id");
+
+  useEffect(() => {
+    async function hydrateReport() {
+      if (reportIdParam) {
+        setIsLoadingReport(true);
+        try {
+          const rpt = await getReportById(reportIdParam);
+          if (rpt) {
+            loadSavedReport(rpt);
+          }
+        } catch (err) {
+          console.error("[Report] Error loading report by param:", err);
+        } finally {
+          setIsLoadingReport(false);
+        }
+      } else if (!feasibility) {
+        // If not in state, attempt to load most recent saved report
+        setIsLoadingReport(true);
+        try {
+          const recentReports = await getUserReports();
+          if (recentReports.length > 0) {
+            loadSavedReport(recentReports[0]);
+          }
+        } catch (err) {
+          console.error("[Report] Error loading recent report:", err);
+        } finally {
+          setIsLoadingReport(false);
+        }
+      }
+    }
+    hydrateReport();
+  }, [reportIdParam]);
 
   const handleSaveReport = async () => {
     if (!feasibility || !business || !location) return;
-    if (!isAuthenticated) {
-      toast.error(t("report.toastSignIn"));
-      return;
-    }
     setIsSaving(true);
     try {
-      await saveReportMutation({
+      await saveReport({
         title: `${business.name} — ${location.name}`,
-        businessId: business.id,
-        businessName: business.name,
-        locationId: location.id,
-        locationName: `${location.name}, ${location.district}`,
+        business_id: business.id,
+        business_name: business.name,
+        location_id: location.id,
+        location_name: `${location.name}, ${location.district}`,
         capital,
-        targetInvestment,
-        otherFunding,
-        placeStatus,
-        rentMonthly,
-        scaleChoice,
-        overallScore: feasibility.overallScore,
+        target_investment: targetInvestment,
+        other_funding: otherFunding,
+        place_status: placeStatus,
+        rent_monthly: rentMonthly,
+        scale_choice: scaleChoice,
+        overall_score: feasibility.overallScore,
         verdict: feasibility.verdict,
-        verdictLabel: feasibility.verdictLabel,
-        feasibilityData: feasibility,
+        verdict_label: feasibility.verdictLabel,
+        feasibility_data: feasibility,
       });
-      toast.success(t("report.toastSaved"));
+      if (isAuthenticated) {
+        toast.success(t("report.toastSaved"));
+      } else {
+        toast.success("Report saved to your workspace! Sign in to sync across devices.");
+      }
     } catch (err) {
       console.error("Failed to save report:", err);
       toast.error(t("report.toastSaveFailed"));

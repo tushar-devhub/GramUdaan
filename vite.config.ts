@@ -26,7 +26,7 @@ export default defineConfig({
         manualChunks: {
           // Vendor chunks for large libraries
           'react-vendor': ['react', 'react-dom', 'react-router'],
-          'convex-vendor': ['convex'],
+          'supabase-vendor': ['@supabase/supabase-js'],
           // Large UI library chunks
           'radix-ui': [
             '@radix-ui/react-accordion',
@@ -83,7 +83,7 @@ export default defineConfig({
       'react-dom',
       'react-dom/client',
       'react-router',
-      '@convex-dev/auth/react',
+      '@supabase/supabase-js',
       'framer-motion',
     ],
   },

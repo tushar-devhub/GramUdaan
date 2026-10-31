@@ -163,8 +163,16 @@ export default function Profile() {
         <h2 className="mb-3 text-sm font-bold text-foreground">{t("profile.account")}</h2>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">{user?.name || t("profile.defaultUser")}</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-semibold text-foreground">{user?.name || t("profile.defaultUser")}</p>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {user?.role || "entrepreneur"}
+              </span>
+            </div>
             <p className="truncate text-xs text-muted-foreground">{user?.email ?? t("profile.signedIn")}</p>
+            {user?.phone && (
+              <p className="truncate text-[11px] text-muted-foreground">{user.phone}</p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Link

@@ -1,20 +1,5 @@
-import { api } from "@/convex/_generated/api";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useSupabaseAuth } from "@/providers/SupabaseAuthProvider";
 
 export function useAuth() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const user = useQuery(api.users.currentUser);
-  const { signIn, signOut } = useAuthActions();
-
-  // Derive isLoading directly from dependencies without stuck loading state when unauthenticated
-  const isLoading = isAuthLoading || (isAuthenticated && user === undefined);
-
-  return {
-    isLoading,
-    isAuthenticated,
-    user,
-    signIn,
-    signOut,
-  };
+  return useSupabaseAuth();
 }

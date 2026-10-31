@@ -1,8 +1,5 @@
 // Voice Service — Web Speech API for STT + TTS
 // Production-grade: mic permissions, Hindi voices, audio analyzer, clean lifecycle
-
-import { CONVEX_URL } from "@/lib/convexUrl";
-
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error" | "permission_required";
 
 // ─── Speech Recognition (STT) ───
@@ -499,33 +496,8 @@ function stopManualRecordingCleanup(): void {
 // POSTs raw audio to the Convex HTTP action → Deepgram (Hindi).
 
 export async function transcribeRecording(
-  blob: Blob,
+  _blob: Blob,
 ): Promise<{ text?: string; error?: "not_configured" | "empty" | "network" | "failed" | "no_speech" }> {
-  const convexUrl = CONVEX_URL;
-  const siteUrl = convexUrl.replace(/\.convex\.cloud$/, ".convex.site");
-  if (!siteUrl) return { error: "network" };
-
-  try {
-    const response = await fetch(`${siteUrl}/voice/transcribe`, {
-      method: "POST",
-      headers: { "Content-Type": blob.type || "audio/webm" },
-      body: blob,
-    });
-
-    const data = (await response.json().catch(() => null)) as {
-      text?: string;
-      error?: string;
-    } | null;
-
-    if (!response.ok) {
-      if (data?.error === "not_configured") return { error: "not_configured" };
-      return { error: "failed" };
-    }
-    if (typeof data?.text === "string" && data.text.trim()) {
-      return { text: data.text.trim() };
-    }
-    return { error: "no_speech" };
-  } catch {
-    return { error: "network" };
-  }
+  // Web Speech API is the primary real-time transcription engine for GramUdaan.
+  return { error: "not_configured" };
 }

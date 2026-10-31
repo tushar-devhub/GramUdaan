@@ -226,7 +226,7 @@ function LanguageToggle() {
  * USER MENU
  * ──────────────────────────────────────────────────────────────────────────── */
 function UserMenu() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -241,7 +241,27 @@ function UserMenu() {
     navigate("/");
   };
 
+  if (!isAuthenticated && !user) {
+    return (
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Link
+          to="/signin"
+          className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+        >
+          Sign In
+        </Link>
+        <Link
+          to="/signup"
+          className="rounded-full bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition-colors shadow-xs"
+        >
+          Sign Up
+        </Link>
+      </div>
+    );
+  }
+
   const email = user?.email ?? user?.name ?? "";
+  const role = user?.role || "entrepreneur";
   const initials = (user?.name || email || "G")
     .split(/[\s@._-]+/)
     .filter(Boolean)
@@ -265,14 +285,19 @@ function UserMenu() {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div role="menu" className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-xl">
             <div className="border-b border-border px-3 py-2.5">
-              <p className="truncate text-xs font-bold text-foreground">{user?.name || "GramUdaan User"}</p>
-              {email ? <p className="truncate text-[11px] text-muted-foreground">{email}</p> : null}
+              <div className="flex items-center justify-between gap-1">
+                <p className="truncate text-xs font-bold text-foreground">{user?.name || "GramUdaan User"}</p>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 uppercase tracking-wider border border-emerald-200">
+                  {role}
+                </span>
+              </div>
+              {email ? <p className="truncate text-[11px] text-muted-foreground mt-0.5">{email}</p> : null}
             </div>
             <button
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                navigate("/settings");
+                navigate("/profile");
               }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
@@ -306,7 +331,7 @@ function UserMenu() {
  * MOBILE SLIDE-IN DRAWER (hamburger + “More”)
  * ──────────────────────────────────────────────────────────────────────────── */
 function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { signOut } = useAuth();
+  const { user, signOut, isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { business, location, subCategory } = useOnboarding();
@@ -389,11 +414,17 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
             <Sparkles className="h-4 w-4" />
             {t("nav.newOrEditAssessment")}
           </Link>
+          {user && (
+            <div className="mb-2 rounded-xl bg-slate-50 border p-2.5 text-xs">
+              <p className="font-bold text-foreground truncate">{user.name || "GramUdaan User"}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-1.5 text-xs font-medium">
             <button
               onClick={() => {
                 onClose();
-                navigate("/settings");
+                navigate("/profile");
               }}
               className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-muted-foreground hover:bg-muted"
             >
@@ -409,12 +440,31 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               <Home className="h-3.5 w-3.5" /> {t("nav.landing")}
             </button>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-          >
-            <LogOut className="h-3.5 w-3.5" /> {t("nav.signOut")}
-          </button>
+          {!isAuthenticated ? (
+            <div className="mt-2 flex items-center gap-2">
+              <Link
+                to="/signin"
+                onClick={onClose}
+                className="flex-1 rounded-lg border border-border py-2 text-center text-xs font-semibold text-slate-700 hover:bg-muted"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/signup"
+                onClick={onClose}
+                className="flex-1 rounded-lg bg-emerald-700 py-2 text-center text-xs font-bold text-white hover:bg-emerald-800"
+              >
+                Sign Up
+              </Link>
+            </div>
+          ) : (
+            <button
+              onClick={handleSignOut}
+              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="h-3.5 w-3.5" /> {t("nav.signOut")}
+            </button>
+          )}
         </div>
       </aside>
     </div>

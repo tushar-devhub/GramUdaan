@@ -2,6 +2,8 @@ import { isAgriCategory } from "@/data/businesses";
 import { fetchNearbyOSMBusinesses } from "./overpassService";
 import { getAgmarknetMandiPrices } from "./agmarknetService";
 import { getHistoricalCropPrices } from "./cropPriceHistoryService";
+import { matchSchemesForProfileSource } from "@/engine/schemeMatching";
+import { SCHEME_DISCLAIMER } from "@/data/schemes";
 import type {
   CanonicalAnalysisResult,
   MandiPriceRecord,
@@ -26,9 +28,7 @@ export interface DataFetchOptions {
   placeStatus?: string;
   rentMonthly?: number;
   scaleChoice?: string;
-  convexClient?: {
-    action: (actionRef: any, args: any) => Promise<any>;
-  } | null;
+  convexClient?: any;
 }
 
 /**
@@ -46,11 +46,11 @@ export async function buildCanonicalAnalysisResult(
   // 1. Fetch External Data Sources in Parallel (Zero Blocking / Non-Hanging Architecture)
   const [osmSettled, mandiSettled, histSettled] = await Promise.allSettled([
     fetchNearbyOSMBusinesses(location.lat, location.lng, radiusKm),
-    isAgri && options.convexClient
-      ? getAgmarknetMandiPrices(location.state, location.district, business.name, options.convexClient)
+    isAgri
+      ? getAgmarknetMandiPrices(location.state, location.district, business.name)
       : Promise.resolve(null),
-    isAgri && options.convexClient
-      ? getHistoricalCropPrices(business.name, location.state, options.convexClient)
+    isAgri
+      ? getHistoricalCropPrices(business.name, location.state)
       : Promise.resolve(null),
   ]);
 
@@ -271,62 +271,36 @@ export async function buildCanonicalAnalysisResult(
   }
 
   // Phase 13: Government Scheme Matcher Engine
-  const schemes: CanonicalSchemeMatch[] = [
-    {
-      schemeId: "pmegp",
-      schemeName: "PMEGP (Prime Minister Employment Generation Programme)",
-      schemeNameHi: "PMEGP — प्रधानमंत्री रोजगार सृजन कार्यक्रम",
-      matchLevel: totalSetupCost <= 2500000 ? "HIGH" : "POSSIBLE",
-      matchLevelHi: totalSetupCost <= 2500000 ? "उच्च योग्यता" : "संभावित योग्यता",
-      maxFunding: 2500000,
-      subsidyRate: "15% - 35%",
-      subsidyRateHi: "15% से 35% तक सब्सिडी (ग्रामीण क्षेत्र हेतु 35%)",
-      keyConditionHi: "न्यूनतम 8वीं पास (10 लाख से अधिक निर्माण/सेवा प्रोजेक्ट के लिए)",
-      disclaimerHi: "सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है।",
-    },
-    {
-      schemeId: "mudra-kishore-tarun",
-      schemeName: "Mudra Loan (Kishore / Tarun)",
-      schemeNameHi: "मुद्रा ऋण योजना (किशोर एवं तरुण श्रेणियां)",
-      matchLevel: "HIGH",
-      matchLevelHi: "उच्च योग्यता",
-      maxFunding: 1000000,
-      subsidyRate: "बिना कोलैटरल लोन",
-      subsidyRateHi: "बिना किसी बैंक गारंटी के 10 लाख तक का लोन",
-      keyConditionHi: "सत्यापित प्रोजेक्ट रिपोर्ट, आधार कार्ड एवं बैंक खाता आवश्यक",
-      disclaimerHi: "ऋण स्वीकृति संबंधित बैंक के क्रेडिट मूल्यांकन पर निर्भर करेगी। सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है।",
-    },
-  ];
-
-  if (business.id === "food-processing") {
-    schemes.unshift({
-      schemeId: "pmfme",
-      schemeName: "PMFME (PM Formalisation of Micro Food Processing Enterprises)",
-      schemeNameHi: "PMFME — सूक्ष्म खाद्य उद्योग उन्नयन योजना",
-      matchLevel: "HIGH",
-      matchLevelHi: "उच्च योग्यता",
-      maxFunding: 1000000,
-      subsidyRate: "35% क्रेडिट-लिंक्ड सब्सिडी",
-      subsidyRateHi: "कुल लागत का 35% (अधिकतम ₹10 लाख)",
-      keyConditionHi: "खाद्य प्रसंस्करण इकाइयां, स्वयं सहायता समूह (SHG) या व्यक्तिगत उद्यमी",
-      disclaimerHi: "जिला संसाधन व्यक्ति (DRP) के माध्यम से आवेदन एवं सत्यापन आवश्यक। सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है।",
-    });
-  }
-
-  if (business.id === "dairy") {
-    schemes.unshift({
-      schemeId: "didf-nabard",
-      schemeName: "Dairy Processing & Infrastructure Development Fund (DIDF)",
-      schemeNameHi: "नाबार्ड डेयरी इंफ्रास्ट्रक्चर डेवलपमेंट फंड (DIDF)",
-      matchLevel: "HIGH",
-      matchLevelHi: "उच्च योग्यता",
-      maxFunding: 1500000,
-      subsidyRate: "2.5% ब्याज छूट एवं सब्सिडी",
-      subsidyRateHi: "सब्सिडीयुक्त ब्याज दर एवं बैंक लोन सहायता",
-      keyConditionHi: "डेयरी प्रोसेसिंग एवं दुग्ध संग्रह केंद्र स्थापित करने हेतु",
-      disclaimerHi: "नाबार्ड और प्राथमिक कृषि ऋण समितियों (PACS) के माध्यम से उपलब्ध। सरकारी नियमों और बैंक स्वीकृति के अधीन। कोई स्वचालित गारंटी नहीं है।",
-    });
-  }
+  const schemeProfileInput = {
+    businessId: business.id,
+    businessName: business.name,
+    businessCategory: business.category,
+    state: location.state,
+    district: location.district,
+    contribution: capital,
+    projectCost: totalSetupCost,
+    fundingRequirement: fundingGap,
+  };
+  const schemeMatchResult = matchSchemesForProfileSource(schemeProfileInput);
+  const schemes: CanonicalSchemeMatch[] = schemeMatchResult.matches
+    .filter((m) => m.level !== "low")
+    .map((m) => ({
+      schemeId: m.scheme.id,
+      schemeName: m.scheme.name,
+      schemeNameHi: m.scheme.nameHi,
+      matchLevel: (m.level === "high" ? "HIGH" : m.level === "possible" ? "POSSIBLE" : "LOW") as "HIGH" | "POSSIBLE" | "LOW",
+      matchLevelHi: m.level === "high" ? "उच्च योग्यता" : m.level === "possible" ? "संभावित योग्यता" : "कम योग्यता",
+      maxFunding: m.scheme.category === "subsidy" ? 2500000 : 1000000,
+      subsidyRate: m.scheme.category === "subsidy" ? "सब्सिडी योजना" : "ऋण/गारंटी योजना",
+      subsidyRateHi: m.scheme.shortDescription,
+      keyConditionHi: m.gaps.length > 0 ? m.gaps[0].text : m.reasons.length > 0 ? m.reasons[0].text : "पात्रता शर्तों का सत्यापन आवश्यक",
+      disclaimerHi: SCHEME_DISCLAIMER,
+      officialSource: m.scheme.officialSource.name,
+      officialUrl: m.scheme.officialSource.url,
+      matchReasons: m.reasons.map((r) => r.text),
+      eligibilityNotes: m.gaps.map((g) => g.text),
+      provenance: "VERIFIED_EXTERNAL",
+    }));
 
   // Data Sources tracking provenance
   const sources = [

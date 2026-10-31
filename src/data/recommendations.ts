@@ -1,95 +1,131 @@
 import { businessCategories, type BusinessCategory } from "./businesses";
 import { type Location } from "./locations";
+import {
+  generateDataDrivenRecommendations,
+  calculateDemandScore,
+  calculateCapitalFitScore,
+  calculateFinancialViabilityScore,
+  type DataDrivenRecommendation,
+  type ScoreFactors,
+  type FactorTrace,
+} from "@/services/recommendationEngine";
 
 export interface BusinessRecommendation {
   business: BusinessCategory;
   reason: string;
+  reasonHi?: string;
   opportunityScore: number;
   competitionLevel: "low" | "medium" | "high";
   rank: number;
+  scoreFactors?: ScoreFactors;
+  calculationTrace?: FactorTrace[];
+  activeFactors?: FactorTrace[];
+  excludedFactors?: FactorTrace[];
+  effectiveWeights?: Record<string, number>;
+  confidence?: "HIGH" | "MEDIUM" | "LOW" | "INSUFFICIENT_DATA";
+  provenance?: {
+    censusSource: string;
+    competitionSource: string;
+    sectorDataSource: string;
+    confidence: "HIGH" | "MEDIUM" | "LOW" | "INSUFFICIENT_DATA";
+  };
 }
 
-const locationProfiles: Record<
-  string,
-  {
-    topBusinesses: string[];
-    reasons: Record<string, string>;
-    scores: Record<string, number>;
-    competition: Record<string, "low" | "medium" | "high">;
-  }
-> = {
-  "loc-1": {
-    topBusinesses: ["poultry-feed", "dairy", "agri-inputs"],
-    reasons: {
-      "poultry-feed": "Strong farmer demand and very few existing suppliers in the area",
-      dairy: "Established daily demand for milk and dairy products",
-      "agri-inputs": "Large farming community with seasonal input needs",
-    },
-    scores: { "poultry-feed": 92, dairy: 78, "agri-inputs": 72 },
-    competition: { "poultry-feed": "low", dairy: "medium", "agri-inputs": "medium" },
-  },
-  "loc-2": {
-    topBusinesses: ["mobile-repair", "grocery", "clothing"],
-    reasons: {
-      "mobile-repair": "Growing smartphone usage with limited repair services",
-      grocery: "Daily-need business with steady footfall near the town centre",
-      clothing: "Moderate demand for ready-made garments in the market area",
-    },
-    scores: { "mobile-repair": 88, grocery: 74, clothing: 68 },
-    competition: { "mobile-repair": "low", grocery: "high", clothing: "medium" },
-  },
-  "loc-3": {
-    topBusinesses: ["dairy", "food-processing", "poultry-feed"],
-    reasons: {
-      dairy: "Strong cooperative network and consistent local demand",
-      "food-processing": "Value-added processing has high margin potential",
-      "poultry-feed": "Underserved supply chain for nearby poultry farms",
-    },
-    scores: { dairy: 85, "food-processing": 80, "poultry-feed": 75 },
-    competition: { dairy: "medium", "food-processing": "low", "poultry-feed": "low" },
-  },
-  "loc-4": {
-    topBusinesses: ["grocery", "dairy", "retail"],
-    reasons: {
-      grocery: "High foot traffic supports a steady customer base",
-      dairy: "Daily essentials with consistent demand",
-      retail: "General retail opportunity in a busy market area",
-    },
-    scores: { grocery: 72, dairy: 70, retail: 65 },
-    competition: { grocery: "high", dairy: "medium", retail: "medium" },
-  },
-};
+/**
+ * Data-Driven Business Recommendation Generator (Synchronous Helper)
+ * Evaluates candidate businesses continuously using Census demographics, capital fit, and financial model.
+ */
+export function getRecommendations(location: Location, capital: number = 200000): BusinessRecommendation[] {
+  const pop = location.population || 10000;
 
-const defaultProfile = {
-  topBusinesses: ["dairy", "grocery", "services"],
-  reasons: {
-    dairy: "Consistent demand for milk and dairy in most localities",
-    grocery: "Essential daily-need business with broad customer appeal",
-    services: "Low-investment business with flexible operating hours",
-  } as Record<string, string>,
-  scores: { dairy: 75, grocery: 70, services: 65 },
-  competition: { dairy: "medium", grocery: "medium", services: "low" } as Record<
-    string,
-    "low" | "medium" | "high"
-  >,
-};
+  // Evaluate candidate categories dynamically
+  const candidates = businessCategories.filter((b) => b.id !== "other");
 
-export function getRecommendations(location: Location): BusinessRecommendation[] {
-  const profile = locationProfiles[location.id] || {
-    ...defaultProfile,
-    topBusinesses:
-      defaultProfile.topBusinesses as string[],
-  };
+  const scored = candidates.map((biz) => {
+    // 1. Continuous Demand Score
+    const hh = location.households || Math.round(pop / 4.4);
+    const demand = calculateDemandScore(pop, hh, biz);
+    
+    // 2. Continuous Capital Fit Score
+    const capFit = calculateCapitalFitScore(capital, biz);
 
-  return profile.topBusinesses.map((bizId, index) => {
-    const biz = businessCategories.find((b) => b.id === bizId);
-    if (!biz) return null;
+    // 3. Dynamic Financial Viability Score
+    const financial = calculateFinancialViabilityScore(biz, capital);
+
+    // Weighted Overall Score (Demand 35%, CapitalFit 40%, Financial 25%)
+    const score = Math.round(demand * 0.35 + capFit * 0.40 + financial * 0.25);
+
+    let reasonEn = `Customer catchment demand in ${location.name} (${pop.toLocaleString("en-IN")} Census baseline) with capital fit and financial viability.`;
+    let reasonHi = `${location.name} में जनसंख्या मांग एवं आपकी ₹${capital.toLocaleString("en-IN")} पूंजी के अनुकूल अवसर।`;
+
     return {
       business: biz,
-      reason: profile.reasons[bizId] || "Based on available local market indicators",
-      opportunityScore: profile.scores[bizId] || 60,
-      competitionLevel: profile.competition[bizId] || "medium",
-      rank: index + 1,
+      reason: reasonEn,
+      reasonHi,
+      opportunityScore: score,
+      competitionLevel: "medium" as const,
+      rank: 0,
+      scoreFactors: {
+        demographicScore: demand,
+        competitionScore: null,
+        capitalFitScore: capFit,
+        sectorAlignmentScore: null,
+        financialViabilityScore: financial,
+      },
+      confidence: "MEDIUM" as const,
+      provenance: {
+        censusSource: "Census of India 2011 (Historical Baseline)",
+        competitionSource: "Excluded (No OSM Data)",
+        sectorDataSource: "Settlement Hinterland Contextual Prior",
+        confidence: "MEDIUM" as const,
+      },
     };
-  }).filter(Boolean) as BusinessRecommendation[];
+  });
+
+  scored.sort((a, b) => b.opportunityScore - a.opportunityScore);
+  scored.forEach((item, idx) => {
+    item.rank = idx + 1;
+  });
+
+  return scored;
+}
+
+/**
+ * Asynchronous Data-Driven Business Recommendation Entry Point
+ * Queries real APIs (Census, Overpass OSM, data.gov.in) and calculates transparent candidate scores.
+ */
+export async function getAsyncRecommendations(
+  location: Location,
+  capital: number = 200000,
+  radiusKm: number = 5,
+  convexClient?: any,
+): Promise<BusinessRecommendation[]> {
+  try {
+    const dataDriven = await generateDataDrivenRecommendations(location, capital, radiusKm, convexClient);
+    console.log(
+      "[Recommendation UI]",
+      "Async data completion - count:",
+      dataDriven.length,
+      "ids:",
+      dataDriven.map((r) => r.business.id)
+    );
+    return dataDriven.map((item) => ({
+      business: item.business,
+      reason: item.reason,
+      reasonHi: item.reasonHi,
+      opportunityScore: item.opportunityScore,
+      competitionLevel: item.competitionLevel,
+      rank: item.rank,
+      scoreFactors: item.scoreFactors,
+      calculationTrace: item.calculationTrace,
+      activeFactors: item.activeFactors,
+      excludedFactors: item.excludedFactors,
+      effectiveWeights: item.effectiveWeights,
+      confidence: item.confidence,
+      provenance: item.provenance,
+    }));
+  } catch (err) {
+    console.warn("[getAsyncRecommendations] API query error, using dynamic candidate scoring:", err);
+    return getRecommendations(location, capital);
+  }
 }

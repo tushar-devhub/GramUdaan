@@ -7,6 +7,7 @@ import type {
   PricingData,
   SubScores,
 } from "./types";
+import type { OSMCompetitionSummary } from "@/types/dataIntegration";
 import { calculateProjectCost, calculateRepayment, calculateLoan } from "./financial";
 
 /* ─── Market Reach ─── */
@@ -321,12 +322,65 @@ export function identifyRisks(
 
 /* ─── Competitor Mapping ─── */
 
+const BIZ_KEYWORDS: Record<string, string[]> = {
+  grocery: ["supermarket", "convenience", "grocery", "general", "department_store", "kirana", "dukan", "store", "shop"],
+  dairy: ["dairy", "milk", "cheese", "doodh", "dairy_farm"],
+  "mobile-repair": ["mobile", "electronics", "repair", "phone", "telecom", "recharge"],
+  clothing: ["clothes", "tailor", "boutique", "fashion", "garment", "apparel", "cloth"],
+  "agri-inputs": ["agr", "seed", "fertilizer", "farm", "kisan", "pesticide", "input"],
+  poultry: ["poultry", "chicken", "meat", "feed", "egg"],
+  "poultry-feed": ["feed", "poultry", "grain"],
+  "food-processing": ["food", "spice", "pickle", "bakery", "snack", "processing"],
+  retail: ["store", "shop", "supermarket", "retail"],
+  services: ["service", "repair", "tailor", "salon"],
+  manufacturing: ["factory", "craft", "manufacturing", "industry"],
+};
+
 export function mapCompetitors(
   businessId: string,
   locationId: string,
   radiusKm: number,
+  osmData?: OSMCompetitionSummary,
 ): CompetitorData {
-  // Mock competitor data — API-ready interface
+  if (osmData && osmData.status === "MAPPED" && osmData.businesses) {
+    const bizNorm = businessId.toLowerCase();
+    const keywords = BIZ_KEYWORDS[bizNorm] || [bizNorm];
+
+    const directMatches = osmData.businesses.filter((b) => {
+      const bCat = (b.category || "").toLowerCase();
+      const bType = (b.businessType || "").toLowerCase();
+      const bName = (b.name || "").toLowerCase();
+      return keywords.some((kw) => bCat.includes(kw) || bType.includes(kw) || bName.includes(kw));
+    });
+
+    const displayList = directMatches.length > 0 ? directMatches : osmData.businesses;
+    const count = directMatches.length > 0 ? directMatches.length : osmData.totalMappedBusinesses;
+
+    const density: "high" | "medium" | "low" =
+      count >= 15 ? "high" : count >= 5 ? "medium" : "low";
+    const densityLabel =
+      density === "high" ? "High" : density === "medium" ? "Medium" : "Low";
+
+    const competitors = displayList.slice(0, 15).map((b) => ({
+      name: b.name,
+      type: b.category,
+      distance: `${b.distanceKm} km`,
+    }));
+
+    const summary = directMatches.length > 0
+      ? `${directMatches.length} direct ${businessId} business(es) mapped on OpenStreetMap out of ${osmData.totalMappedBusinesses} total registered commercial locations within ${radiusKm} km.`
+      : `${osmData.totalMappedBusinesses} nearby registered commercial locations found on OpenStreetMap within ${radiusKm} km.`;
+
+    return {
+      totalBusinesses: count,
+      density,
+      densityLabel,
+      competitors,
+      summary,
+    };
+  }
+
+  // Mock competitor data — API-ready interface fallback
   const allCompetitors: { name: string; type: string; distance: string }[] = [
     { name: "Sharma General Store", type: "Grocery", distance: "0.5 km" },
     { name: "Raj Dairy Farm", type: "Dairy", distance: "1.2 km" },

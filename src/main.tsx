@@ -1,30 +1,35 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
-import { RequireAuth } from "@/components/RequireAuth";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
+import { SupabaseAuthProvider } from "@/providers/SupabaseAuthProvider";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import "./index.css";
-import { CONVEX_URL } from "@/lib/convexUrl";
-// Leaflet styles belong to the app shell (static <link> in the built
-// index.html), NOT to a lazy route chunk. Imported from a route component
-// they ship as a runtime-injected async stylesheet, which can fail to apply
-// in production deployments and leaves the map panes/tiles unstyled =
-// invisible map even though tiles download fine.
 import "leaflet/dist/leaflet.css";
 import { OnboardingProvider } from "./lib/onboarding-context";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import AppShell from "./components/AppShell";
+import { RoleGuard } from "./components/RoleGuard";
 
-// Lazy load route components
+// Public & Landing
 const Landing = lazy(() => import("./pages/Landing.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
-const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
+
+// Authentication Pages
+const SignInPage = lazy(() => import("./pages/auth/SignInPage.tsx"));
+const SignUpPage = lazy(() => import("./pages/auth/SignUpPage.tsx"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage.tsx"));
+const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage.tsx"));
+const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage.tsx"));
+
+// Canonical Entrepreneur Dashboard & Role Dashboards
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const AdvisorDashboard = lazy(() => import("./pages/dashboards/AdvisorDashboard.tsx"));
+const AdminDashboard = lazy(() => import("./pages/dashboards/AdminDashboard.tsx"));
+
+// Existing GramUdaan Core Modules
+const Onboarding = lazy(() => import("./pages/Onboarding.tsx"));
 const Analysis = lazy(() => import("./pages/Analysis.tsx"));
 const Finance = lazy(() => import("./pages/Finance.tsx"));
 const Market = lazy(() => import("./pages/Market.tsx"));
@@ -45,16 +50,15 @@ function RouteLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
-        <span className="text-sm font-bold text-primary font-serif-display">GramUdaan</span>
-        <div className="h-8 w-8 rounded-full border-2 border-muted border-t-primary animate-spin" />
-        <span className="text-sm text-muted-foreground font-medium">{t("common.loading")}</span>
+        <span className="text-sm font-bold text-emerald-800 font-serif-display">GramUdaan</span>
+        <div className="h-8 w-8 rounded-full border-2 border-slate-200 border-t-emerald-700 animate-spin" />
+        <span className="text-xs text-muted-foreground font-medium">{t("common.loading")}</span>
       </div>
     </div>
   );
 }
 
-/** Silent error boundary — if VlyToolbar crashes it renders nothing instead of
- *  crashing the whole app (e.g. hook errors in WebContainer environment). */
+/** Silent error boundary */
 class ToolbarErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
@@ -109,8 +113,6 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convex = new ConvexReactClient(CONVEX_URL);
-
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
@@ -140,31 +142,61 @@ createRoot(document.getElementById("root")!).render(
       <ToolbarErrorBoundary>
         <VlyToolbar />
       </ToolbarErrorBoundary>
-      <ConvexAuthProvider client={convex}>
+      <SupabaseAuthProvider>
         <BrowserRouter>
           <RouteSyncer />
           <LanguageProvider>
             <OnboardingProvider>
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
-                  {/* ── Public Auth ── */}
+                  {/* ── Public Landing & Auth ── */}
                   <Route path="/" element={<Landing />} />
-                  <Route path="/auth" element={<AuthPage redirectAfterAuth="/onboarding" />} />
-                  <Route path="/login" element={<AuthPage redirectAfterAuth="/onboarding" />} />
-                  <Route path="/register" element={<AuthPage redirectAfterAuth="/onboarding" />} />
-                  <Route path="/forgot-password" element={<AuthPage redirectAfterAuth="/onboarding" />} />
-                  {/* Onboarding stays a separate, focused flow (not inside the app shell) */}
-                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/signin" element={<SignInPage />} />
+                  <Route path="/login" element={<SignInPage />} />
+                  <Route path="/auth" element={<SignInPage />} />
+                  <Route path="/signup" element={<SignUpPage />} />
+                  <Route path="/register" element={<SignUpPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-                  {/* ── GramUdaan app (authenticated shell: header, sidebar, bottom nav) ── */}
+                  {/* Focused Onboarding Flow */}
                   <Route
+                    path="/onboarding"
                     element={
-                      <RequireAuth>
-                        <AppShell />
-                      </RequireAuth>
+                      <RoleGuard>
+                        <Onboarding />
+                      </RoleGuard>
                     }
-                  >
+                  />
+
+                  {/* ── GramUdaan App Shell (Original Navigation, Cream Background, Topbar) ── */}
+                  <Route element={<AppShell />}>
+                    {/* Primary Entrepreneur Dashboard */}
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/dashboard/entrepreneur" element={<Dashboard />} />
+
+                    {/* Role B: Business Advisor Dashboard */}
+                    <Route
+                      path="/dashboard/advisor"
+                      element={
+                        <RoleGuard allowedRoles={["advisor", "admin"]}>
+                          <AdvisorDashboard />
+                        </RoleGuard>
+                      }
+                    />
+
+                    {/* Role C: Platform Administrator Dashboard */}
+                    <Route
+                      path="/dashboard/admin"
+                      element={
+                        <RoleGuard allowedRoles={["admin"]}>
+                          <AdminDashboard />
+                        </RoleGuard>
+                      }
+                    />
+
+                    {/* Preserved Core GramUdaan Modules */}
                     <Route path="/advisor" element={<Advisor />} />
                     <Route path="/analysis" element={<Analysis />} />
                     <Route path="/finance" element={<Finance />} />
@@ -172,6 +204,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="/schemes" element={<Schemes />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/settings" element={<Profile />} />
+                    <Route path="/profile" element={<Profile />} />
                     <Route path="/plan" element={<Plan />} />
                     <Route path="/what-if" element={<WhatIf />} />
                     <Route path="/compare" element={<Compare />} />
@@ -188,7 +221,7 @@ createRoot(document.getElementById("root")!).render(
             </OnboardingProvider>
           </LanguageProvider>
         </BrowserRouter>
-      </ConvexAuthProvider>
+      </SupabaseAuthProvider>
     </RootErrorBoundary>
   </StrictMode>,
 );

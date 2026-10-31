@@ -1,8 +1,3 @@
-// AI Service — abstracts the AI provider
-// Server-side via Convex action (keeps API keys safe)
-
-import { CONVEX_URL } from "@/lib/convexUrl";
-
 export interface AIMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -13,31 +8,11 @@ export interface AIResponse {
   error?: string;
 }
 
-// Call the Convex action for AI response
+// Call the AI service for response
 export async function getAIResponse(
   messages: AIMessage[],
 ): Promise<AIResponse> {
-  try {
-    const response = await fetch(
-      `${CONVEX_URL}/api/ai/chat`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
-      },
-    );
-
-    if (!response.ok) {
-      // Fallback: if Convex action not available, use client-side context
-      return getClientSideResponse(messages);
-    }
-
-    const data = await response.json();
-    return { text: data.text || data.response || "जवाब तैयार नहीं हो पाया।" };
-  } catch {
-    // Fallback to client-side contextual responses
-    return getClientSideResponse(messages);
-  }
+  return getClientSideResponse(messages);
 }
 
 // Client-side fallback — generates contextual responses from analysis data

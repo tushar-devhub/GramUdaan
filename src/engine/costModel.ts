@@ -14,6 +14,8 @@ import {
   SCALE_FACTORS,
 } from "@/data/businessConfig";
 
+export type { PlaceStatus };
+
 export type CostPriority = "essential" | "important" | "optional";
 
 export interface CostComponent {

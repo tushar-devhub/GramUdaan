@@ -9,7 +9,7 @@ import { allocateCapital, capitalFitResult, recommendScale, suggestSurplusUse } 
 import type { Location } from "@/data/locations";
 import { businessCategories, type BusinessCategory } from "@/data/businesses";
 import { formatIndianCurrency } from "@/data/assessment";
-import { getRecommendations } from "@/data/recommendations";
+import { getRecommendations, getAsyncRecommendations, type BusinessRecommendation } from "@/data/recommendations";
 import IndiaMap from "@/components/IndiaMap";
 import {
   getSubCategoriesForBusiness, getSubCategory,
@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useAuth } from "@/hooks/use-auth";
+import { saveReport } from "@/services/supabase/reports";
 
 function OnboardingLanguageToggle() {
   const { language, setLanguage } = useLanguage();
@@ -80,8 +82,10 @@ function OnboardingInner() {
     businessAnswers, setBusinessAnswer,
     otherFunding, setOtherFunding,
     costOverrides, setCostOverride, resetCostOverrides,
-    setFeasibility, isAnalyzing, setIsAnalyzing, runFullAnalysis,
+    feasibility, setFeasibility, isAnalyzing, setIsAnalyzing, runFullAnalysis,
+    targetInvestment,
   } = useOnboarding();
+  const { user, updateUserProfile } = useAuth();
 
   const [businessSearch, setBusinessSearch] = useState("");
   const [capitalError, setCapitalError] = useState("");
@@ -167,12 +171,48 @@ function OnboardingInner() {
     setIsAnalyzing(true);
     try {
       const startedAt = Date.now();
-      await runFullAnalysis();
+      const analysisRes = await runFullAnalysis();
       const elapsed = Date.now() - startedAt;
       const minDisplay = 1200;
       if (elapsed < minDisplay) {
         await new Promise((resolve) => setTimeout(resolve, minDisplay - elapsed));
       }
+
+      // Automatically sync profile and generated report to Supabase
+      try {
+        if (user && updateUserProfile) {
+          await updateUserProfile({
+            state: location.state,
+            district: location.district,
+            village: location.name,
+            pincode: location.pincode,
+            available_capital: capital,
+            preferred_language: language,
+          });
+        }
+
+        await saveReport({
+          title: `${business.name} - ${location.name}`,
+          business_id: business.id,
+          business_name: business.name,
+          sub_category_id: subCategory?.id,
+          location_id: location.id,
+          location_name: `${location.name}, ${location.district}`,
+          capital: capital,
+          target_investment: targetInvestment || capital,
+          other_funding: otherFunding || 0,
+          place_status: placeStatus || "unsure",
+          rent_monthly: rentMonthly || 0,
+          scale_choice: scaleChoice || "recommended",
+          overall_score: analysisRes?.feasibilityScore?.value || 75,
+          verdict: analysisRes?.decision?.code === "START" ? "good" : analysisRes?.decision?.code === "PROCEED_CAREFULLY" ? "caution" : "rethink",
+          verdict_label: analysisRes?.decision?.labelHi || (language === "hi" ? "सावधानी से आगे बढ़ें" : "Proceed with caution"),
+          feasibility_data: analysisRes || {},
+        });
+      } catch (persistErr) {
+        console.warn("[Onboarding] Remote persist notice:", persistErr);
+      }
+
       setIsAnalyzing(false);
       analyzeBusyRef.current = false;
       navigate("/dashboard");
@@ -182,7 +222,7 @@ function OnboardingInner() {
       analyzeBusyRef.current = false;
       setAnalyzeError(true);
     }
-  }, [business, location, capital, navigate, runFullAnalysis, setIsAnalyzing, transitionTo, language, t]);
+  }, [business, location, capital, targetInvestment, otherFunding, placeStatus, rentMonthly, scaleChoice, subCategory, navigate, runFullAnalysis, setIsAnalyzing, transitionTo, language, t, user, updateUserProfile]);
 
   if (analyzeError) {
     return (
@@ -798,7 +838,51 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
   location: Location | null;
 }) {
   const { language, t } = useLanguage();
-  const recommendations = useMemo(() => (location ? getRecommendations(location) : []), [location]);
+  const [recommendations, setRecommendations] = useState<BusinessRecommendation[]>([]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (location) {
+      const recs = getRecommendations(location);
+      console.log(
+        "[Recommendation UI]",
+        "State update (sync) - count:",
+        recs.length,
+        "ids:",
+        recs.map((r) => r.business.id)
+      );
+      setRecommendations(recs);
+
+      getAsyncRecommendations(location)
+        .then((asyncRecs) => {
+          if (!isCancelled && asyncRecs.length > 0) {
+            console.log(
+              "[Recommendation UI]",
+              "State update (async) - count:",
+              asyncRecs.length,
+              "ids:",
+              asyncRecs.map((r) => r.business.id)
+            );
+            setRecommendations(asyncRecs);
+          }
+        })
+        .catch((err) => {
+          console.warn("[Recommendation UI] Async error:", err);
+        });
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [location]);
+
+  console.log(
+    "[Recommendation UI]",
+    "Final render - count:",
+    recommendations.length,
+    "ids:",
+    recommendations.map((r) => r.business.id)
+  );
+
   const [showRecommendations] = useState(true);
 
   const handleSuggestMe = useCallback(() => {
@@ -826,7 +910,7 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
         </p>
       </div>
 
-      {/* AI Recommendations — always show when location selected and not searching */}
+      {/* AI Data-Driven Recommendations */}
       {recommendations.length > 0 && !search && showRecommendations && (
         <div className="mb-6 animate-slide-up">
           <div className="flex items-center gap-2 mb-1">
@@ -845,11 +929,13 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
                   "w-full flex items-center gap-4 rounded-xl border p-4 text-left transition-all hover:shadow-md",
                   selected?.id === rec.business.id
                     ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
-                    : cn("bg-gradient-to-r border", rankColors[rec.rank - 1] || rankColors[2]),
+                    : cn("bg-gradient-to-r border", rankColors[rec.rank - 1] || "from-slate-50 to-slate-100/50 border-slate-200"),
                 )}>
-                <span className="text-2xl flex-shrink-0">{rankEmoji[rec.rank - 1]}</span>
+                <span className="text-xl sm:text-2xl font-bold text-muted-foreground flex-shrink-0 w-8 text-center">
+                  {rankEmoji[rec.rank - 1] || `#${rec.rank}`}
+                </span>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-foreground">
                       {language === "hi" ? rec.business.nameHi : rec.business.name}
                     </span>
@@ -858,10 +944,25 @@ function BusinessStep({ search, onSearchChange, businesses, selected, onSelect, 
                       rec.competitionLevel === "medium" ? "bg-amber-100 text-amber-700" :
                       "bg-red-100 text-red-700",
                     )}>
-                      {rec.competitionLevel === "low" ? t("onboarding.bizCompLow") : rec.competitionLevel === "medium" ? t("onboarding.bizCompMedium") : t("onboarding.bizCompHigh")}
+                      {rec.scoreFactors?.competitionScore !== null
+                        ? (rec.competitionLevel === "low" ? t("onboarding.bizCompLow") : rec.competitionLevel === "medium" ? t("onboarding.bizCompMedium") : t("onboarding.bizCompHigh"))
+                        : "Competition: Excluded (No OSM)"}
                     </span>
+                    {rec.confidence && (
+                      <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded border",
+                        rec.confidence === "HIGH" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                        rec.confidence === "MEDIUM" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                        "bg-amber-50 text-amber-800 border-amber-200"
+                      )}>
+                        {rec.confidence === "HIGH" ? "✓ Real API Data (High Confidence)" :
+                         rec.confidence === "MEDIUM" ? "✓ Verified Data + Baseline (Medium)" :
+                         "~ Estimated Prior (Low Confidence)"}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{rec.reason}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {language === "hi" && rec.reasonHi ? rec.reasonHi : rec.reason}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="text-xs font-bold text-primary">{rec.opportunityScore}</span>

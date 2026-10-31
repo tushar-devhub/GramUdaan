@@ -23,6 +23,7 @@ export interface Location {
 // These towns power the detailed demo flows. Population / household figures
 // are calibrated baselines used by the (estimated) market model.
 export const locations: Location[] = [
+  { id: "loc-delhi-central", name: "New Delhi", district: "New Delhi", state: "Delhi", pincode: "110001", lat: 28.6139, lng: 77.2090, type: "city", population: 142000, households: 28000, source: "curated" },
   { id: "loc-1", name: "Rampur", district: "Rampur", state: "Uttar Pradesh", pincode: "244901", lat: 28.79, lng: 79.02, type: "town", population: 32500, households: 4700, source: "curated" },
   { id: "loc-2", name: "Bisalpur", district: "Pilibhit", state: "Uttar Pradesh", pincode: "262121", lat: 28.21, lng: 79.8, type: "town", population: 22100, households: 3300, source: "curated" },
   { id: "loc-3", name: "Shahjahanpur", district: "Shahjahanpur", state: "Uttar Pradesh", pincode: "242001", lat: 27.88, lng: 79.91, type: "town", population: 42000, households: 6200, source: "curated" },

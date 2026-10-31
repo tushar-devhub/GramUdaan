@@ -315,6 +315,11 @@ function normalizePlace(s: string): string {
   return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+function capitalizePlace(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 export function extractLocation(text: string): { location: Location | null; unknownPlace: string | null } {
   const normalized = ` ${normalizePlace(text)} `;
 
@@ -332,20 +337,45 @@ export function extractLocation(text: string): { location: Location | null; unkn
     }
   }
 
-  // Unknown place-name capture: "gaon me" / "मेरे गांव X" style
+  // Unknown place-name capture
   const STOPWORDS = new Set([
     "me", "main", "men", "mein", "m", "my", "ka", "ki", "ke", "ko", "se", "to", "toh", "ho",
     "hai", "hain", "apne", "apna", "apni", "mere", "mera", "meri", "mujhe", "muje", "mujh",
-    "hum", "humara", "start", "shuru", "karna", "kholna", "karne", "kholne", "mein", "bhi",
-    "aur", "wala", "wali", "sabse", "zyada", "kam", "achha", "thoda", "nahi", "hai", "rahega",
+    "hum", "humara", "start", "shuru", "karna", "kholna", "karne", "kholne", "bhi",
+    "aur", "wala", "wali", "sabse", "zyada", "kam", "achha", "thoda", "nahi", "rahega",
+    "business", "dairy", "farm", "lakh", "rupaye", "rupeye", "paas", "karna",
+    "store", "grocery", "shop", "dukaan", "profit", "aayega", "kab", "karo", "batao",
   ]);
-  const villageHint = normalized.match(/(?:gaon|gaav|gaam|gau|village|town|shehar|shahar|गांव|गाँव|शहर|कस्बा)\s+([a-z]{3,30})/i);
-  if (villageHint) {
-    const place = villageHint[1];
-    if (!STOPWORDS.has(place)) {
-      return { location: null, unknownPlace: place };
+
+  // 1. Suffix match: "Alwar ke paas", "Alwar mein", "Alwar me", "Alwar se", "Alwar near"
+  const suffixMatch = text.match(/([a-zA-Z\u0900-\u097F]{3,30})\s+(?:ke\s+paas|paas|mein|me|men|se|near|around|के\s+पास|पास|में|से)/i);
+  if (suffixMatch) {
+    const place = suffixMatch[1].trim();
+    if (!STOPWORDS.has(place.toLowerCase())) {
+      return { location: null, unknownPlace: capitalizePlace(place) };
     }
   }
+
+  // 2. Prefix match: "in Alwar", "near Alwar", "around Alwar", "gaon Alwar"
+  const prefixMatch = text.match(/(?:in|near|around|gaon|gaav|gaam|gau|village|town|city|shehar|shahar|गांव|गाँव|शहर|कस्बा)\s+([a-zA-Z\u0900-\u097F]{3,30})/i);
+  if (prefixMatch) {
+    const place = prefixMatch[1].trim();
+    if (!STOPWORDS.has(place.toLowerCase())) {
+      return { location: null, unknownPlace: capitalizePlace(place) };
+    }
+  }
+
+  // 3. Short standalone location mention (1 to 3 words, e.g. "Alwar" or "near Alwar")
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 3) {
+    for (const w of words) {
+      const clean = w.replace(/[^a-zA-Z\u0900-\u097F]/g, "");
+      if (clean.length >= 3 && !STOPWORDS.has(clean.toLowerCase()) && !/^\d+$/.test(clean)) {
+        return { location: null, unknownPlace: capitalizePlace(clean) };
+      }
+    }
+  }
+
   return { location: null, unknownPlace: null };
 }
 

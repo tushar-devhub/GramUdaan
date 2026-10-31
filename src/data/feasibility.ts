@@ -1,11 +1,12 @@
 import { analyzeMarketReach, analyzeOpportunity, generateSWOT, identifyRisks, mapCompetitors, analyzePricing, calculateSubScores } from "@/engine/market";
 import { calculateProjectCost, calculateRepayment, calculateLoan, calculateAffordability } from "@/engine/financial";
 import type { CostContext } from "@/engine/costModel";
+import type { OSMCompetitionSummary, MandiPriceRecord } from "@/types/dataIntegration";
 import { buildCostBreakdown } from "@/engine/costModel";
 import { buildBusinessModel } from "@/engine/businessModel";
 import { rankAlternativeBusinesses } from "@/engine/alternatives";
 import type { FeasibilityData } from "./feasibility-types";
-import { locations } from "./locations";
+import { locations, findLocationById } from "./locations";
 
 export type { FeasibilityData };
 
@@ -14,10 +15,10 @@ export function generateFeasibility(
   capital: number,
   locationId: string,
   radiusKm = 5,
-  options?: CostContext,
+  options?: CostContext & { osmCompetition?: OSMCompetitionSummary; mandiData?: MandiPriceRecord[] },
 ): FeasibilityData {
-  // Get location data
-  const location = locations.find((l) => l.id === locationId) || locations[0];
+  // Get location data (supports dynamically registered PIN locations)
+  const location = findLocationById(locationId) || locations.find((l) => l.id === locationId) || locations[0];
 
   // ─── Market Analysis ───
   const marketReach = analyzeMarketReach(
@@ -30,7 +31,7 @@ export function generateFeasibility(
   const opportunity = analyzeOpportunity(businessId, locationId);
   const swot = generateSWOT(businessId, locationId, capital);
   const risks = identifyRisks(businessId, locationId, capital);
-  const competition = mapCompetitors(businessId, locationId, radiusKm);
+  const competition = mapCompetitors(businessId, locationId, radiusKm, options?.osmCompetition);
   const pricing = analyzePricing(businessId, locationId);
 
   // ─── Financial Engine (business-context aware — no universal multiplier) ───

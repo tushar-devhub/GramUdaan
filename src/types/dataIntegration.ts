@@ -119,6 +119,11 @@ export interface CanonicalSchemeMatch {
   subsidyRateHi: string;
   keyConditionHi: string;
   disclaimerHi: string; // Explicit non-guarantee
+  officialSource?: string;
+  officialUrl?: string;
+  matchReasons?: string[];
+  eligibilityNotes?: string[];
+  provenance?: DataProvenanceStatus;
 }
 
 /** Single Canonical AnalysisResult (Phase 19) */
